@@ -1,0 +1,3 @@
+/Server/venv
+*.pyc
+Server/.env
