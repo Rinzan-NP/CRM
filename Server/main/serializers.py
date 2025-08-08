@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from main.models import Product
-from .models import VATSettings   # same app
+from .models import Customer, VATSettings   # same app
 
 
 from rest_framework import serializers
@@ -27,3 +27,21 @@ class ProductSerializer(serializers.ModelSerializer):
             'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'vat_rate']
+        
+
+class CustomerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Customer
+        fields = [
+            'id', 'name', 'email', 'phone', 'address',
+            'credit_limit', 'current_balance',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+        
+
+class VATSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = VATSettings
+        fields = ['id', 'category', 'rate']
+        read_only_fields = ['id']

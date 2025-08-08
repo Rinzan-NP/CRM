@@ -1,7 +1,11 @@
-from django.urls import path
+from rest_framework.routers import DefaultRouter
+from .views import CustomerViewSet, ProductViewSet, SupplierViewSet, VATSettingsViewSet
+from django.urls import path, include
 
-from .views import SupplierViewSet
+router = DefaultRouter()
+router.register(r"customers", CustomerViewSet)
+router.register(r"suppliers", SupplierViewSet)
+router.register(r"products", ProductViewSet)
+router.register(r"vat-settings", VATSettingsViewSet)
 
-urlpatterns = [
-    path('suppliers/', SupplierViewSet.as_view({'get': 'list', 'post': 'create'}), name='supplier-list'),
-]
+urlpatterns = [path("", include(router.urls))]
