@@ -7,6 +7,7 @@ import PrivateRouter from "./PrivateRouter";
 import PublicRouter from "./PublicRouter";
 import Customers from "../pages/Customers";
 import Suppliers from "../pages/Suppliers";
+import Products from "../pages/Products";
 
 const MainRouter = () => {
     return (
@@ -47,6 +48,14 @@ const MainRouter = () => {
                 element={
                     <PrivateRouter>
                         <Suppliers />
+                    </PrivateRouter>
+                }
+            />
+            <Route
+                path="/main/products"
+                element={
+                    <PrivateRouter>
+                        <Products />
                     </PrivateRouter>
                 }
             />
