@@ -1,14 +1,10 @@
-# CRM System
+CRM System
+A Customer Relationship Management (CRM) application built with Django (backend) and React (frontend).
 
-A Customer Relationship Management (CRM) application built with **Django** (backend) and **React** (frontend).
-
----
-
-## 🚀 Development Setup
-
-### 1️⃣ Backend Setup
-
-```bash
+🚀 Development Setup
+1️⃣ Backend Setup
+bash
+Copy code
 # Navigate to the server folder
 cd Server
 
@@ -27,18 +23,19 @@ pip install -r requirements.txt
 # Run database migrations
 python manage.py makemigrations
 python manage.py migrate
-
 2️⃣ Environment Variables
 Create a .env file inside the Server folder and add:
 
-DB_HOST=
-DB_PORT=
-DB_USER=
-DB_PASSWORD=
-DB_NAME=
-
+env
+Copy code
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=2134
+DB_NAME=crm
 3️⃣ Frontend Setup
-
+bash
+Copy code
 # Navigate to the frontend folder
 cd frontend
 
@@ -47,9 +44,6 @@ npm install
 
 # Run the development server
 npm run dev
-
-
-
 📂 Project Structure
 bash
 Copy code
@@ -65,8 +59,6 @@ CRM/
 │   └── ...
 │
 └── README.md
-
-
 🛠 Tech Stack
 Backend: Django, Django REST Framework
 
@@ -92,10 +84,3 @@ cd frontend
 npm run dev
 📜 License
 This project is licensed under the MIT License.
-
-yaml
-Copy code
-
----
-
-If you want, I can also **add screenshots and usage examples** to make it
