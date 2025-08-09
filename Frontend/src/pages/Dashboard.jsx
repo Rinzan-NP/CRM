@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchSales } from '../features/sales/salesSlice';
-import { Card } from '../components/Card';
+import { fetchSales } from '../redux/salesSlice';
+import Card from '../components/Card';
 
 export default function Dashboard() {
   const dispatch = useDispatch();
@@ -19,4 +19,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

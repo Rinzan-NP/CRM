@@ -13,7 +13,7 @@ export default function LoginPage() {
     event.preventDefault();
     try {
       const { access, user } = dispatch(login({ email, password }));
-      navigate('/dashboard');
+      navigate('/');
     } catch (error) {
       console.error('Login failed', error);
     }

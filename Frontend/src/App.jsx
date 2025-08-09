@@ -8,25 +8,20 @@ import MainRouter from './router/MainRouter';
 import LoginPage from './pages/Login';
 
 function App() {
-  const dispatch = useDispatch();
-  const auth = useSelector((state) => state.auth);
+  // const dispatch = useDispatch();
+  // const auth = useSelector((state) => state.auth);
 
-  useEffect(() => {
-    // If token exists in localStorage, attempt to login
-    if (auth.token) {
-      dispatch(login({ email: auth.user.email }));
-    }
-  }, [dispatch, auth.token]);
+ 
 
-  const handleLogout = () => {
-    dispatch(logout());
-    localStorage.removeItem('token');
-  };
+  // const handleLogout = () => {
+  //   dispatch(logout());
+  //   localStorage.removeItem('token');
+  // };
 
   return (
     <Provider store={store}>
       <BrowserRouter>
-         <MainRouter onLogout={handleLogout} />
+         <MainRouter  />
       </BrowserRouter>
     </Provider>
   );

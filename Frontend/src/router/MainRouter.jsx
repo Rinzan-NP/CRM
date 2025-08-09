@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import NotFound from "../pages/NotFound";
 import LoginScreen from "../pages/Login";
+import { Dashboard } from "../pages/index";
 import PrivateRouter from "./PrivateRouter";
 import PublicRouter from "./PublicRouter";
 
@@ -18,6 +19,12 @@ const MainRouter = () => {
                     <PublicRouter>
                         <LoginScreen />
                     </PublicRouter>
+                }
+            />
+            <Route
+                path="/"
+                element={
+                    <PrivateRouter><Dashboard /></PrivateRouter>
                 }
             />
 
