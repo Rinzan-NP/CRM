@@ -6,6 +6,7 @@ import Dashboard from "../pages/Dashboard";
 import PrivateRouter from "./PrivateRouter";
 import PublicRouter from "./PublicRouter";
 import Customers from "../pages/Customers";
+import Suppliers from "../pages/Suppliers";
 
 const MainRouter = () => {
     return (
@@ -38,6 +39,14 @@ const MainRouter = () => {
                 element={
                     <PrivateRouter>
                         <Customers />
+                    </PrivateRouter>
+                }
+            />
+            <Route
+                path="/main/suppliers"
+                element={
+                    <PrivateRouter>
+                        <Suppliers />
                     </PrivateRouter>
                 }
             />
