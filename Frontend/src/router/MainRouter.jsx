@@ -5,6 +5,7 @@ import LoginScreen from "../pages/Login";
 import Dashboard from "../pages/Dashboard";
 import PrivateRouter from "./PrivateRouter";
 import PublicRouter from "./PublicRouter";
+import Customers from "../pages/Customers";
 
 const MainRouter = () => {
     return (
@@ -22,6 +23,21 @@ const MainRouter = () => {
                 element={
                     <PrivateRouter>
                         <Dashboard />
+                    </PrivateRouter>
+                }
+            />
+            <Route
+                path="/main/customers"
+                element={
+                    <PrivateRouter>
+                        <Customers />
+                    </PrivateRouter>
+                }
+            /><Route
+                path="/main/customers"
+                element={
+                    <PrivateRouter>
+                        <Customers />
                     </PrivateRouter>
                 }
             />
