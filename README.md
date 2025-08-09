@@ -1,5 +1,4 @@
 # CRM System
-[![Ask DeepWiki](https://devin.ai/assets/askdeepwiki.png)](https://deepwiki.com/Rinzan-NP/CRM)
 
 A comprehensive Customer Relationship Management (CRM) application built with a Django REST Framework backend and a React frontend. It provides tools for managing customers, suppliers, sales, and auditing.
 
