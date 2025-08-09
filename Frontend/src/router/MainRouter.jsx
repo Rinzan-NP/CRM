@@ -1,20 +1,29 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Provider } from 'react-redux';
-import { store } from '../redux/store';
-import PublicRouter from './PublicRouter';
-import PrivateRouter from './PrivateRouter';
+import { Routes, Route } from "react-router-dom";
+import NotFound from "../pages/NotFound";
+import LoginScreen from "../pages/Login";
+import PrivateRouter from "./PrivateRouter";
+import PublicRouter from "./PublicRouter";
 
-function MainRouter() {
-  return (
-    <BrowserRouter>
-       <Provider store={store}>
-          <Routes>
-            <Route path="/" element={<PublicRouter />} />
-            <Route path="/app" element={<PrivateRouter />} />
-          </Routes>
-       </Provider>
-    </BrowserRouter>
-  );
-}
+
+
+const MainRouter = () => {
+    return (
+        <Routes>
+            {/* Public Route: For unauthenticated users.
+              If a logged-in user visits /login, PublicRouter should redirect them to /.
+            */}
+            <Route
+                path="/login"
+                element={
+                    <PublicRouter>
+                        <LoginScreen />
+                    </PublicRouter>
+                }
+            />
+
+            <Route path="*" element={<NotFound />} />
+        </Routes>
+    );
+};
 
 export default MainRouter;

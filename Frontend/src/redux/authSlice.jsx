@@ -7,9 +7,10 @@ const loadToken = () => {
 };
 
 // Utility function to save token and user to localStorage
-const saveAuth = (token, user) => {
+const saveAuth = (token, role, refresh) => {
   localStorage.setItem('token', token);
-  localStorage.setItem('user', JSON.stringify(user));
+  localStorage.setItem('role', role);
+  localStorage.setItem('refresh', refresh);
 };
 
 export const login = createAsyncThunk(
@@ -17,7 +18,7 @@ export const login = createAsyncThunk(
   async ({ email, password }, { rejectWithValue }) => {
     try {
       const response = await api.post('/accounts/login/', { email, password });
-      saveAuth(response.data.access, response.data.user);
+      saveAuth(response.data.access, response.data.role, response.data.refresh);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response.data);
@@ -31,14 +32,16 @@ const authSlice = createSlice({
   reducers: {
     logout: (state) => {
       localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      return { token: null, user: null };
+      localStorage.removeItem('role');
+      localStorage.removeItem('refresh');
+      return { token: null, role: null, refresh: null };
     },
   },
   extraReducers: (builder) => {
     builder.addCase(login.fulfilled, (state, action) => {
       state.token = action.payload.access;
-      state.user = action.payload.user;
+      state.role = action.payload.role;
+      state.refresh = action.payload.refresh;
     });
   },
 });
