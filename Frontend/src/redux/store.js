@@ -8,6 +8,8 @@ import salesOrdersReducer from './salesOrdersSlice';
 import purchaseOrdersSlice from './purchaseOrdersSlice'
 import invoicesReducer from './invoicesSlice';
 import paymentsReducer from './paymentsSlice';
+import routesReducer from './routesSlice';
+import routeVisitsReducer from './routeVisitsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -19,5 +21,7 @@ export const store = configureStore({
     purchaseOrders: purchaseOrdersSlice,
     invoices: invoicesReducer,
     payments: paymentsReducer,
+    routes: routesReducer,
+    routeVisits: routeVisitsReducer,
   },
 });

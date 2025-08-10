@@ -8,6 +8,6 @@ router.register(r"purchase-orders", PurchaseOrderViewSet)
 router.register(r"invoices", InvoiceViewSet)
 router.register(r"payments", PaymentViewSet)
 router.register(r"routes", RouteViewSet)
-router.register(r"route-visits", RouteVisitViewSet)
+router.register(r"routevisits", RouteVisitViewSet)
 
 urlpatterns = [path("", include(router.urls))]

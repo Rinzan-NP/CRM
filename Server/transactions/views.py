@@ -52,11 +52,17 @@ class RouteViewSet(viewsets.ModelViewSet):
     serializer_class = RouteSerializer
     permission_classes = [IsAuthenticated]
 
+    @action(detail=True, methods=["get"])
+    def visits(self, request, pk=None):
+        route = self.get_object()
+        visits = route.visits.all()
+        serializer = RouteVisitSerializer(visits, many=True)
+        return Response(serializer.data)
 
 class RouteVisitViewSet(viewsets.ModelViewSet):
     queryset = RouteVisit.objects.all()
     serializer_class = RouteVisitSerializer
-    permission_classes = [IsAuthenticated]  
+    permission_classes = [IsAuthenticated]
     
 
 

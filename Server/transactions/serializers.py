@@ -95,16 +95,17 @@ class InvoiceSerializer(serializers.ModelSerializer):
         
 
 class RouteVisitSerializer(serializers.ModelSerializer):
-    customer = CustomerSerializer(read_only=True)
-    customer_id = serializers.UUIDField(write_only=True)
-
     class Meta:
         model = RouteVisit
         fields = [
-            'id', 'route', 'customer_id', 'customer',
-            'check_in', 'check_out', 'lat', 'lon', 'status'
+            'id', 'route', 'customer', 'check_in', 'check_out', 'lat', 'lon', 'status'
         ]
         read_only_fields = ['id']
+
+    def validate_customer(self, value):
+        if not value:
+            raise serializers.ValidationError("This field is required.")
+        return value
 
 
 class RouteSerializer(serializers.ModelSerializer):
@@ -116,4 +117,8 @@ class RouteSerializer(serializers.ModelSerializer):
             'id', 'salesperson', 'name', 'date',
             'start_time', 'end_time', 'visits'
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id','salesperson']
+        
+    def create(self, validated_data):
+        validated_data['salesperson'] = self.context['request'].user
+        return super().create(validated_data)

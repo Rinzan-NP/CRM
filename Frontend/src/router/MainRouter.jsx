@@ -12,6 +12,8 @@ import SalesOrders from "../pages/SalesOrder";
 import PurchaseOrders from "../pages/PurchaseOrder";
 import Invoices from "../pages/Invoices";
 import Payments from "../pages/Payments";
+import Roote from "../pages/Routes"; // Assuming you have a Routes component
+import RouteVisits from "../pages/RouteVisits"; // Import the RouteVisits component
 
 const MainRouter = () => {
     return (
@@ -33,13 +35,6 @@ const MainRouter = () => {
                 }
             />
             <Route
-                path="/main/customers"
-                element={
-                    <PrivateRouter>
-                        <Customers />
-                    </PrivateRouter>
-                }
-            /><Route
                 path="/main/customers"
                 element={
                     <PrivateRouter>
@@ -92,6 +87,22 @@ const MainRouter = () => {
                 element={
                     <PrivateRouter>
                         <Payments />
+                    </PrivateRouter>
+                }
+            />
+            <Route
+                path="/transactions/routes"
+                element={
+                    <PrivateRouter>
+                        <Roote />
+                    </PrivateRouter>
+                }
+            />
+            <Route
+                path="/transactions/route-visits"
+                element={
+                    <PrivateRouter>
+                        <RouteVisits />
                     </PrivateRouter>
                 }
             />
