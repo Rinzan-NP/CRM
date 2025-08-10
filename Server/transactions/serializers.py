@@ -51,8 +51,13 @@ class PurchaseOrderLineItemSerializer(serializers.ModelSerializer):
                   'discount', 'line_total']
         read_only_fields = ['line_total']
 
+    def validate_product_id(self, value):
+        if not Product.objects.filter(pk=value).exists():
+            raise serializers.ValidationError("Product not found.")
+        return value
+
 class PurchaseOrderSerializer(serializers.ModelSerializer):
-    line_items = PurchaseOrderLineItemSerializer(many=True)
+    line_items = PurchaseOrderLineItemSerializer(many=True, read_only=False)
 
     class Meta:
         model = PurchaseOrder

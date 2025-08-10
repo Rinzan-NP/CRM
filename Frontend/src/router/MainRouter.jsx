@@ -9,6 +9,7 @@ import Customers from "../pages/Customers";
 import Suppliers from "../pages/Suppliers";
 import Products from "../pages/Products";
 import SalesOrders from "../pages/SalesOrder";
+import PurchaseOrders from "../pages/PurchaseOrder";
 
 const MainRouter = () => {
     return (
@@ -65,6 +66,14 @@ const MainRouter = () => {
                 element={
                     <PrivateRouter>
                         <SalesOrders />
+                    </PrivateRouter>
+                }
+            />
+            <Route
+                path="/transactions/purchase-orders"
+                element={
+                    <PrivateRouter>
+                        <PurchaseOrders />
                     </PrivateRouter>
                 }
             />

@@ -29,6 +29,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     queryset = PurchaseOrder.objects.all()
     serializer_class = PurchaseOrderSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_serializer(self, *args, **kwargs):
+        # Ensure the request context is passed to the serializer
+        kwargs['context'] = self.get_serializer_context()
+        return self.serializer_class(*args, **kwargs)
     
     
 class InvoiceViewSet(viewsets.ModelViewSet):
