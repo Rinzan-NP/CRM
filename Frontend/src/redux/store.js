@@ -10,7 +10,7 @@ import invoicesReducer from './invoicesSlice';
 import paymentsReducer from './paymentsSlice';
 import routesReducer from './routesSlice';
 import routeVisitsReducer from './routeVisitsSlice';
-
+import auditlogsReducer from './auditLogsSlice';
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -23,5 +23,6 @@ export const store = configureStore({
     payments: paymentsReducer,
     routes: routesReducer,
     routeVisits: routeVisitsReducer,
+    auditLogs: auditlogsReducer, // Ensure you import and add the auditLogsReducer
   },
 });

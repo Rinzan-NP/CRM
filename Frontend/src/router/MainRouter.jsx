@@ -14,6 +14,7 @@ import Invoices from "../pages/Invoices";
 import Payments from "../pages/Payments";
 import Roote from "../pages/Routes"; // Assuming you have a Routes component
 import RouteVisits from "../pages/RouteVisits"; // Import the RouteVisits component
+import AuditLogs from "../pages/AuditLoges";
 
 const MainRouter = () => {
     return (
@@ -103,6 +104,14 @@ const MainRouter = () => {
                 element={
                     <PrivateRouter>
                         <RouteVisits />
+                    </PrivateRouter>
+                }
+            />
+            <Route
+                path="/audit/audit-logs"
+                element={
+                    <PrivateRouter>
+                        <AuditLogs />
                     </PrivateRouter>
                 }
             />

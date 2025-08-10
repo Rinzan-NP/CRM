@@ -13,4 +13,4 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         user = self.request.user
         if user.role == 'Admin':
             return self.queryset
-        return self.queryset.filter(user=user)
+        return self.queryset.filter()
