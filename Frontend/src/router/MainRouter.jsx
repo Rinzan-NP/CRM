@@ -10,6 +10,7 @@ import Suppliers from "../pages/Suppliers";
 import Products from "../pages/Products";
 import SalesOrders from "../pages/SalesOrder";
 import PurchaseOrders from "../pages/PurchaseOrder";
+import Invoices from "../pages/Invoices";
 
 const MainRouter = () => {
     return (
@@ -74,6 +75,14 @@ const MainRouter = () => {
                 element={
                     <PrivateRouter>
                         <PurchaseOrders />
+                    </PrivateRouter>
+                }
+            />
+            <Route
+                path="/transactions/invoices"
+                element={
+                    <PrivateRouter>
+                        <Invoices />
                     </PrivateRouter>
                 }
             />
