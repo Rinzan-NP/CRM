@@ -9,9 +9,8 @@ class OrderLineItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = OrderLineItem
-        fields = ['id', 'product', 'product_id', 'quantity', 'unit_price',
-                  'discount', 'line_total']
-        read_only_fields = ['line_total']
+        fields = ['product_id', 'quantity', 'unit_price', 'discount', 'line_total', 'product']
+        read_only_fields = ['line_total', 'product']
 
     def validate_product_id(self, value):
         if not Product.objects.filter(pk=value).exists():
@@ -28,12 +27,15 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             'id', 'customer', 'salesperson', 'order_date', 'status',
             'subtotal', 'vat_total', 'grand_total', 'profit', 'line_items'
         ]
-        read_only_fields = ['subtotal', 'vat_total', 'grand_total', 'profit']
+        read_only_fields = ['subtotal', 'vat_total', 'grand_total', 'profit', 'salesperson']
 
     def create(self, validated_data):
         line_data = validated_data.pop('line_items', [])
+        validated_data['salesperson'] = self.context['request'].user
+        # print("Creating Sales Order with data:", validated_data)
         order = SalesOrder.objects.create(**validated_data)
         for item in line_data:
+            print(item)
             OrderLineItem.objects.create(sales_order=order, **item)
         order.calculate_totals()
         order.save(update_fields=['subtotal', 'vat_total', 'grand_total', 'profit'])

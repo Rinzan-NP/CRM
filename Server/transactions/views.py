@@ -14,6 +14,11 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     serializer_class = SalesOrderSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_serializer(self, *args, **kwargs):
+        # Ensure the request context is passed to the serializer
+        kwargs['context'] = self.get_serializer_context()
+        return self.serializer_class(*args, **kwargs)
+
     @action(detail=True, methods=["get"])
     def profit(self, request, pk=None):
         """Return computed profit for this order."""
