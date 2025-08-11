@@ -37,6 +37,7 @@ const PurchaseOrders = () => {
         supplier: "",
         order_date: "",
         status: "draft",
+        prices_include_vat: false,
         line_items: [
             {
                 product_id: "",
@@ -99,24 +100,35 @@ const PurchaseOrders = () => {
     const calculateTotalsForLineItems = (lineItems = purchaseOrder.line_items) => {
         if (!Array.isArray(lineItems)) return;
         
-        let subtotal = 0.0;
+        let netSubtotal = 0.0;
+        let vatTotal = 0.0;
         const updatedLineItems = lineItems.map((item) => {
             const unitCost = parseFloat(item.unit_cost) || 0;
             const quantity = parseFloat(item.quantity) || 0;
             const discount = parseFloat(item.discount) || 0;
             
-            const lineTotal = unitCost * quantity * (1 - discount / 100);
-            subtotal += lineTotal;
-            return { ...item, line_total: lineTotal };
+            const lineGross = unitCost * quantity * (1 - discount / 100);
+            const product = products.find(p => p && p.id === item.product_id);
+            const vatRate = product && product.vat_rate !== undefined ? parseFloat(product.vat_rate) : 0;
+            if (purchaseOrder.prices_include_vat && vatRate > 0) {
+                const net = lineGross / (1 + vatRate / 100);
+                const vat = lineGross - net;
+                netSubtotal += net;
+                vatTotal += vat;
+            } else {
+                const vat = lineGross * vatRate / 100;
+                netSubtotal += lineGross;
+                vatTotal += vat;
+            }
+            return { ...item, line_total: lineGross };
         });
         
-        const vatTotal = subtotal * 0.05; // Assuming a 5% VAT rate for simplicity
-        const grandTotal = subtotal + vatTotal;
+        const grandTotal = netSubtotal + vatTotal;
         
         setPurchaseOrder(prev => ({
             ...prev,
             line_items: updatedLineItems,
-            subtotal: parseFloat(subtotal.toFixed(2)),
+            subtotal: parseFloat(netSubtotal.toFixed(2)),
             vat_total: parseFloat(vatTotal.toFixed(2)),
             grand_total: parseFloat(grandTotal.toFixed(2)),
         }));
@@ -157,6 +169,7 @@ const PurchaseOrders = () => {
                     supplier: "",
                     order_date: "",
                     status: "draft",
+                    prices_include_vat: false,
                     line_items: [
                         {
                             product_id: "",
@@ -188,6 +201,7 @@ const PurchaseOrders = () => {
                     supplier: "",
                     order_date: "",
                     status: "draft",
+                    prices_include_vat: false,
                     line_items: [
                         {
                             product_id: "",
@@ -243,6 +257,7 @@ const PurchaseOrders = () => {
             supplier: po.supplier || "",
             order_date: po.order_date || "",
             status: po.status || "draft",
+            prices_include_vat: po.prices_include_vat || false,
             line_items: transformedLineItems,
             subtotal: parseFloat(po.subtotal) || 0.0,
             vat_total: parseFloat(po.vat_total) || 0.0,
@@ -318,7 +333,7 @@ const PurchaseOrders = () => {
                                                 key={supplier.id}
                                                 value={supplier.id}
                                             >
-                                                {supplier.name || `Supplier ${supplier.id}`}
+                                                {supplier.id} - {supplier.name || `Supplier ${supplier.id}`}
                                             </option>
                                         ) : null
                                     ))}
@@ -405,7 +420,7 @@ const PurchaseOrders = () => {
                                                         key={product.id}
                                                         value={product.id}
                                                     >
-                                                        {product.name || `Product ${product.id}`}
+                                                        {product.code || product.id} - {product.name || `Product ${product.id}`}
                                                     </option>
                                                 ) : null
                                             ))}
@@ -516,6 +531,22 @@ const PurchaseOrders = () => {
                         ))}
 
                         <div className="mt-4">
+                            <label className="inline-flex items-center">
+                                <input
+                                    type="checkbox"
+                                    className="form-checkbox"
+                                    checked={purchaseOrder.prices_include_vat}
+                                    onChange={(e) => {
+                                        const next = { ...purchaseOrder, prices_include_vat: e.target.checked };
+                                        setPurchaseOrder(next);
+                                        calculateTotalsForLineItems(next.line_items);
+                                    }}
+                                />
+                                <span className="ml-2 text-sm text-gray-700">Costs include VAT</span>
+                            </label>
+                        </div>
+
+                        <div className="mt-4">
                             <button
                                 type="button"
                                 onClick={handleAddLineItem}
@@ -550,7 +581,7 @@ const PurchaseOrders = () => {
                                     htmlFor="vat_total"
                                     className="block text-sm font-medium text-gray-700"
                                 >
-                                    VAT (5%)
+                                    VAT Total
                                 </label>
                                 <div className="mt-1">
                                     <input
@@ -601,6 +632,7 @@ const PurchaseOrders = () => {
                                             supplier: "",
                                             order_date: "",
                                             status: "draft",
+                                            prices_include_vat: false,
                                             line_items: [
                                                 {
                                                     product_id: "",
@@ -636,6 +668,12 @@ const PurchaseOrders = () => {
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
+                                    <th
+                                        scope="col"
+                                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    >
+                                        Order #
+                                    </th>
                                     <th
                                         scope="col"
                                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -690,6 +728,9 @@ const PurchaseOrders = () => {
                                 {Array.isArray(purchaseOrders) && purchaseOrders.length > 0 ? (
                                     purchaseOrders.map((po) => (
                                         <tr key={po.id || Math.random()}>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                {po.order_number || 'N/A'}
+                                            </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                 {getSupplierName(po.supplier)}
                                             </td>
@@ -750,7 +791,7 @@ const PurchaseOrders = () => {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan="8" className="px-6 py-4 text-center text-sm text-gray-500">
+                                        <td colSpan="9" className="px-6 py-4 text-center text-sm text-gray-500">
                                             No purchase orders found
                                         </td>
                                     </tr>

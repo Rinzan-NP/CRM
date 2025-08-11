@@ -14,6 +14,8 @@ class SalesOrder(BaseModel):
         ("invoiced", "Invoiced"),
         ("cancelled", "Cancelled"),
     ]
+    # Human-readable ID for display
+    order_number = models.CharField(max_length=20, unique=True, blank=True)
     customer = models.ForeignKey(
         Customer, on_delete=models.CASCADE, related_name="sales_orders"
     )
@@ -24,6 +26,8 @@ class SalesOrder(BaseModel):
     vat_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     profit = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    # When true, unit prices entered on line items are VAT-inclusive (gross)
+    prices_include_vat = models.BooleanField(default=False)
 
     class Meta:
         indexes = [
@@ -32,7 +36,19 @@ class SalesOrder(BaseModel):
         ]
 
     def __str__(self):
-        return f"SO-{self.order_date.strftime('%y%m%d')}-{str(self.id)[:6]}"
+        return self.order_number or f"SO-{self.order_date.strftime('%y%m%d')}-{str(self.id)[:6]}"
+
+    def save(self, *args, **kwargs):
+        if not self.order_number:
+            # Generate order number if not provided
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d')
+            # Get count of orders for today
+            today_orders = SalesOrder.objects.filter(
+                order_date=self.order_date
+            ).count()
+            self.order_number = f"SO-{timestamp}-{today_orders + 1:03d}"
+        super().save(*args, **kwargs)
 
     def calculate_totals(self):
         """
@@ -40,19 +56,29 @@ class SalesOrder(BaseModel):
         Call this from the save() of OrderLineItem and SalesOrder.
         """
         lines = self.line_items.select_related("product__vat_category")
-        subtotal = sum(l.line_total for l in lines)
+        net_subtotal = 0
         vat_total = 0
         total_cost = 0
         for l in lines:
-            vat_rate = l.product.vat_category.rate
-            vat_total += l.line_total * vat_rate / 100
+            vat_rate = float(l.product.vat_category.rate or 0)
+            line_gross = float(l.line_total)
+            if self.prices_include_vat and vat_rate > 0:
+                # gross includes VAT → net = gross / (1 + r)
+                net = line_gross / (1 + vat_rate / 100)
+                vat = line_gross - net
+            else:
+                # exclusive or zero/exempt
+                net = line_gross
+                vat = line_gross * vat_rate / 100
+            net_subtotal += net
+            vat_total += vat
             # compute cost using product.unit_cost
-            total_cost += (getattr(l.product, "unit_cost", 0) or 0) * l.quantity
-        self.subtotal = subtotal
+            total_cost += float(getattr(l.product, "unit_cost", 0) or 0) * float(l.quantity)
+        self.subtotal = net_subtotal
         self.vat_total = vat_total
-        self.grand_total = subtotal + vat_total
-        # profit = revenue - cost
-        self.profit = subtotal - total_cost
+        self.grand_total = net_subtotal + vat_total
+        # profit = revenue(net) - cost
+        self.profit = net_subtotal - total_cost
 
 
 class OrderLineItem(BaseModel):
@@ -86,6 +112,8 @@ class PurchaseOrder(BaseModel):
         ("received", "Received"),
         ("cancelled", "Cancelled"),
     ]
+    # Human-readable ID for display
+    order_number = models.CharField(max_length=20, unique=True, blank=True)
     supplier = models.ForeignKey(
         "main.Supplier", on_delete=models.CASCADE, related_name="purchase_orders"
     )
@@ -94,6 +122,8 @@ class PurchaseOrder(BaseModel):
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     vat_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    # When true, unit costs entered on line items are VAT-inclusive (gross)
+    prices_include_vat = models.BooleanField(default=False)
 
     class Meta:
         indexes = [
@@ -102,17 +132,38 @@ class PurchaseOrder(BaseModel):
         ]
 
     def __str__(self):
-        return f"PO-{self.order_date.strftime('%y%m%d')}-{str(self.id)[:6]}"
+        return self.order_number or f"PO-{self.order_date.strftime('%y%m%d')}-{str(self.id)[:6]}"
+
+    def save(self, *args, **kwargs):
+        if not self.order_number:
+            # Generate order number if not provided
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d')
+            # Get count of orders for today
+            today_orders = PurchaseOrder.objects.filter(
+                order_date=self.order_date
+            ).count()
+            self.order_number = f"PO-{timestamp}-{today_orders + 1:03d}"
+        super().save(*args, **kwargs)
 
     def calculate_totals(self):
         lines = self.line_items.select_related("product__vat_category")
-        subtotal = sum(l.line_total for l in lines)
+        net_subtotal = 0
         vat_total = 0
         for l in lines:
-            vat_total += l.line_total * l.product.vat_category.rate / 100
-        self.subtotal = subtotal
+            vat_rate = float(l.product.vat_category.rate or 0)
+            line_gross = float(l.line_total)
+            if self.prices_include_vat and vat_rate > 0:
+                net = line_gross / (1 + vat_rate / 100)
+                vat = line_gross - net
+            else:
+                net = line_gross
+                vat = line_gross * vat_rate / 100
+            net_subtotal += net
+            vat_total += vat
+        self.subtotal = net_subtotal
         self.vat_total = vat_total
-        self.grand_total = subtotal + vat_total
+        self.grand_total = net_subtotal + vat_total
 
 
 class PurchaseOrderLineItem(BaseModel):
@@ -145,7 +196,7 @@ class Invoice(BaseModel):
         ("cancelled", "Cancelled"),
     ]
     sales_order = models.OneToOneField(SalesOrder, on_delete=models.CASCADE, related_name="invoice")
-    invoice_no  = models.CharField(max_length=50, unique=True)
+    invoice_no  = models.CharField(max_length=50, unique=True, blank=True)
     issue_date  = models.DateField()
     due_date    = models.DateField()
     amount_due  = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)  # = SO.grand_total
@@ -175,21 +226,18 @@ class Invoice(BaseModel):
         # Generate invoice number if not provided
         if not self.invoice_no:
             from datetime import datetime
-            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-            # Use a temporary ID if not saved yet
-            temp_id = str(self.id) if self.id else 'TEMP'
-            self.invoice_no = f"INV-{timestamp}-{temp_id[:6]}"
+            timestamp = datetime.now().strftime('%Y%m%d')
+            # Get count of invoices for today
+            today_invoices = Invoice.objects.filter(
+                issue_date=self.issue_date
+            ).count()
+            self.invoice_no = f"INV-{timestamp}-{today_invoices + 1:03d}"
         
         # Set amount_due from sales order if not set
         if not self.amount_due and self.sales_order:
             self.amount_due = self.sales_order.grand_total
             
         super().save(*args, **kwargs)
-        
-        # Update invoice number with actual ID if it was temporary
-        if self.invoice_no and 'TEMP' in self.invoice_no:
-            self.invoice_no = self.invoice_no.replace('TEMP', str(self.id)[:6])
-            super().save(update_fields=['invoice_no'])
 
 
 class Payment(BaseModel):

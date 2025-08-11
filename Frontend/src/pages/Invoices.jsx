@@ -6,7 +6,7 @@ import { fetchSalesOrders } from '../redux/salesOrdersSlice';
 
 const Invoices = () => {
   const { invoices, loading: loadingInvoices } = useSelector((state) => state.invoices);
-  const { salesOrders } = useSelector((state) => state.salesOrders);
+  const { salesOrders, loading: loadingSalesOrders } = useSelector((state) => state.salesOrders);
   const dispatch = useDispatch();
   const [invoice, setInvoice] = useState({
     sales_order: '',
@@ -59,6 +59,11 @@ const Invoices = () => {
 
   useEffect(() => {}, [salesOrders, editMode]);
 
+  const getCustomerName = (customer) => {
+    if (!customer) return 'N/A';
+    return `${customer.first_name} ${customer.last_name}`;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -84,11 +89,18 @@ const Invoices = () => {
                   onChange={handleInputChange}
                 >
                   <option value="">Select Sales Order</option>
-                  {salesOrders.map((salesOrder) => (
-                    <option key={salesOrder.id} value={salesOrder.id}>
-                      {salesOrder.order_date} - {salesOrder.customer.name} - {salesOrder.grand_total}
-                    </option>
-                  ))}
+                  {loadingSalesOrders ? (
+                      <option value="">Loading...</option>
+                  ) : (
+                      salesOrders.map((salesOrder) => (
+                          <option
+                              key={salesOrder.id}
+                              value={salesOrder.id}
+                          >
+                              {salesOrder.order_number || salesOrder.id} - {getCustomerName(salesOrder.customer)}
+                          </option>
+                      ))
+                  )}
                 </select>
               </div>
             </div>

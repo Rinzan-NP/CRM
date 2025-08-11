@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from rest_framework import status
 from django.db.models import Sum, Count, Avg
 from django.utils.dateparse import parse_date
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Invoice, Payment, PurchaseOrder, Route, RouteVisit, SalesOrder, RouteLocationPing
@@ -17,6 +17,14 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     queryset = SalesOrder.objects.all()
     serializer_class = SalesOrderSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        if role == 'salesperson':
+            return qs.filter(salesperson=user)
+        return qs
 
     def get_serializer(self, *args, **kwargs):
         # Ensure the request context is passed to the serializer
@@ -34,6 +42,28 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseOrderSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        return [IsAuthenticated()]
+
+    def has_write_access(self):
+        role = getattr(self.request.user, 'role', '')
+        return role in ('admin', 'accountant')
+
+    def create(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().destroy(request, *args, **kwargs)
+
     def get_serializer(self, *args, **kwargs):
         # Ensure the request context is passed to the serializer
         kwargs['context'] = self.get_serializer_context()
@@ -45,16 +75,78 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     serializer_class = InvoiceSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        if role == 'salesperson':
+            return qs.filter(sales_order__salesperson=user)
+        return qs
+
+    def has_write_access(self):
+        role = getattr(self.request.user, 'role', '')
+        return role in ('admin', 'accountant')
+
+    def create(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().destroy(request, *args, **kwargs)
+
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        if role == 'salesperson':
+            return qs.filter(invoice__sales_order__salesperson=user)
+        return qs
+
+    def has_write_access(self):
+        role = getattr(self.request.user, 'role', '')
+        return role in ('admin', 'accountant')
+
+    def create(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().destroy(request, *args, **kwargs)
     
 
 class RouteViewSet(viewsets.ModelViewSet):
     queryset = Route.objects.all()
     serializer_class = RouteSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        if role == 'salesperson':
+            return qs.filter(salesperson=user)
+        return qs
 
     @action(detail=True, methods=["get"])
     def visits(self, request, pk=None):
@@ -67,6 +159,14 @@ class RouteVisitViewSet(viewsets.ModelViewSet):
     queryset = RouteVisit.objects.all()
     serializer_class = RouteVisitSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        if role == 'salesperson':
+            return qs.filter(route__salesperson=user)
+        return qs
     
 
 class RouteLocationPingViewSet(viewsets.ModelViewSet):
