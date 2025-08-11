@@ -65,6 +65,7 @@ class Product(BaseModel):
     code = models.CharField(max_length=100, unique=True)
     name = models.CharField(max_length=255)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     vat_category = models.ForeignKey(
     VATSettings,
     on_delete=models.PROTECT,
@@ -80,6 +81,8 @@ class Product(BaseModel):
         super().clean()
         if self.unit_price < 0:
             raise ValidationError('Unit price cannot be negative.')
+        if self.unit_cost < 0:
+            raise ValidationError('Unit cost cannot be negative.')
         if not self.code:
             raise ValidationError('Product code is required.')
         

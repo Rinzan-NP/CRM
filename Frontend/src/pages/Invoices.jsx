@@ -6,17 +6,12 @@ import { fetchSalesOrders } from '../redux/salesOrdersSlice';
 
 const Invoices = () => {
   const { invoices, loading: loadingInvoices } = useSelector((state) => state.invoices);
-  const { salesOrders } = useSelector((state) => state.salesOrders);
+  const { salesOrders, loading: loadingSalesOrders } = useSelector((state) => state.salesOrders);
   const dispatch = useDispatch();
   const [invoice, setInvoice] = useState({
     sales_order: '',
-    invoice_no: '',
     issue_date: '',
     due_date: '',
-    amount_due: 0.00,
-    paid_amount: 0.00,
-    outstanding: 0.00,
-    status: 'sent',
   });
   const [editMode, setEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -36,13 +31,8 @@ const Invoices = () => {
     await dispatch(createInvoice(invoice));
     setInvoice({
       sales_order: '',
-      invoice_no: '',
       issue_date: '',
       due_date: '',
-      amount_due: 0.00,
-      paid_amount: 0.00,
-      outstanding: 0.00,
-      status: 'sent',
     });
   };
 
@@ -52,13 +42,8 @@ const Invoices = () => {
     setEditMode(false);
     setInvoice({
       sales_order: '',
-      invoice_no: '',
       issue_date: '',
       due_date: '',
-      amount_due: 0.00,
-      paid_amount: 0.00,
-      outstanding: 0.00,
-      status: 'sent',
     });
   };
 
@@ -72,25 +57,12 @@ const Invoices = () => {
     setInvoice(invoice);
   };
 
-  const generateInvoiceNo = () => {
-    const date = new Date();
-    const year = date.getFullYear().toString().slice(-2);
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    const sequence = (invoices.length + 1).toString().padStart(4, '0');
-    return `INV-${year}${month}${day}-${sequence}`;
-  };
+  useEffect(() => {}, [salesOrders, editMode]);
 
-  useEffect(() => {
-    if (!editMode && salesOrders.length > 0) {
-      setInvoice((prev) => ({
-        ...prev,
-        invoice_no: generateInvoiceNo(),
-        amount_due: salesOrders[0].grandtotal,
-        outstanding: salesOrders[0].grandtotal,
-      }));
-    }
-  }, [salesOrders, editMode]);
+  const getCustomerName = (customer) => {
+    if (!customer) return 'N/A';
+    return `${customer.first_name} ${customer.last_name}`;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
@@ -117,31 +89,23 @@ const Invoices = () => {
                   onChange={handleInputChange}
                 >
                   <option value="">Select Sales Order</option>
-                  {salesOrders.map((salesOrder) => (
-                    <option key={salesOrder.id} value={salesOrder.id}>
-                      {salesOrder.order_date} - {salesOrder.customer.name} - {salesOrder.grand_total}
-                    </option>
-                  ))}
+                  {loadingSalesOrders ? (
+                      <option value="">Loading...</option>
+                  ) : (
+                      salesOrders.map((salesOrder) => (
+                          <option
+                              key={salesOrder.id}
+                              value={salesOrder.id}
+                          >
+                              {salesOrder.order_number || salesOrder.id} - {getCustomerName(salesOrder.customer)}
+                          </option>
+                      ))
+                  )}
                 </select>
               </div>
             </div>
 
-            <div>
-              <label htmlFor="invoice_no" className="block text-sm font-medium text-gray-700">
-                Invoice Number
-              </label>
-              <div className="mt-1">
-                <input
-                  id="invoice_no"
-                  name="invoice_no"
-                  type="text"
-                  required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  value={invoice.invoice_no}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
+            
 
             <div>
               <label htmlFor="issue_date" className="block text-sm font-medium text-gray-700">
@@ -177,62 +141,11 @@ const Invoices = () => {
               </div>
             </div>
 
-            <div>
-              <label htmlFor="amount_due" className="block text-sm font-medium text-gray-700">
-                Amount Due
-              </label>
-              <div className="mt-1">
-                <input
-                  id="amount_due"
-                  name="amount_due"
-                  type="number"
-                  step="0.01"
-                  required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  value={invoice.amount_due}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
+            
 
-            <div>
-              <label htmlFor="paid_amount" className="block text-sm font-medium text-gray-700">
-                Paid Amount
-              </label>
-              <div className="mt-1">
-                <input
-                  id="paid_amount"
-                  name="paid_amount"
-                  type="number"
-                  step="0.01"
-                  required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  value={invoice.paid_amount}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
+            
 
-            <div>
-              <label htmlFor="status" className="block text-sm font-medium text-gray-700">
-                Status
-              </label>
-              <div className="mt-1">
-                <select
-                  id="status"
-                  name="status"
-                  required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  value={invoice.status}
-                  onChange={handleInputChange}
-                >
-                  <option value="sent">Sent</option>
-                  <option value="paid">Paid</option>
-                  <option value="overdue">Overdue</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-            </div>
+            
 
             <div className="mt-6">
               <button

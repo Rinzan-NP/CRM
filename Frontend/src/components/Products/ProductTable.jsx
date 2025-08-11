@@ -12,7 +12,7 @@ export default function ProductTable({ products, vatCategories, onEdit, onDelete
       <table className="min-w-full divide-y divide-slate-200">
         <thead className="bg-slate-50">
           <tr>
-            {['Code', 'Name', 'Price', 'VAT', 'Status', 'Actions'].map((h) => (
+            {['Code', 'Name', 'Price', 'Cost', 'VAT', 'Status', 'Actions'].map((h) => (
               <th 
                 key={h} 
                 className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider"
@@ -33,6 +33,9 @@ export default function ProductTable({ products, vatCategories, onEdit, onDelete
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                 ${parseFloat(p.unit_price).toFixed(2)}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                ${parseFloat(p.unit_cost ?? 0).toFixed(2)}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                 {getVatRate(p.vat_category)}

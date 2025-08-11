@@ -25,6 +25,7 @@ const SalesOrders = () => {
         customer: "",
         order_date: "",
         status: "draft",
+        prices_include_vat: false,
         line_items: [
             {
                 product_id: "",
@@ -35,6 +36,7 @@ const SalesOrders = () => {
             },
         ],
         subtotal: 0.0,
+        vat_total: 0.0,
         grand_total: 0.0, // Changed from grandtotal to grand_total
     });
     const [editMode, setEditMode] = useState(false);
@@ -72,21 +74,32 @@ const SalesOrders = () => {
     };
 
     const calculateTotalsForLineItems = (lineItems = salesOrder.line_items) => {
-        let subtotal = 0.0;
+        let netSubtotal = 0.0;
+        let vatTotal = 0.0;
         const updatedLineItems = lineItems.map((item) => {
-            const lineTotal = (item.unit_price || 0) * (item.quantity || 0) * (1 - (item.discount || 0) / 100);
-            subtotal += lineTotal;
-            return { ...item, line_total: lineTotal };
+            const base = (parseFloat(item.unit_price) || 0) * (parseFloat(item.quantity) || 0) * (1 - (parseFloat(item.discount) || 0) / 100);
+            const product = products.find(p => p.id === item.product_id);
+            const vatRate = product && product.vat_rate !== undefined ? parseFloat(product.vat_rate) : 0;
+            if (salesOrder.prices_include_vat && vatRate > 0) {
+                const net = base / (1 + vatRate / 100);
+                const vat = base - net;
+                netSubtotal += net;
+                vatTotal += vat;
+                return { ...item, line_total: base };
+            } else {
+                const vat = base * vatRate / 100;
+                netSubtotal += base;
+                vatTotal += vat;
+                return { ...item, line_total: base };
+            }
         });
-        
-        const vatTotal = subtotal * 0.05; // Assuming a 5% VAT rate for simplicity
-        const grandTotal = subtotal + vatTotal;
-        
+        const grandTotal = netSubtotal + vatTotal;
         setSalesOrder(prev => ({
             ...prev,
             line_items: updatedLineItems,
-            subtotal: parseFloat(subtotal.toFixed(2)),
-            grand_total: parseFloat(grandTotal.toFixed(2)), // Changed from grandtotal to grand_total
+            subtotal: parseFloat(netSubtotal.toFixed(2)),
+            vat_total: parseFloat(vatTotal.toFixed(2)),
+            grand_total: parseFloat(grandTotal.toFixed(2)),
         }));
     };
 
@@ -126,6 +139,7 @@ const SalesOrders = () => {
             customer: "",
             order_date: "",
             status: "draft",
+            prices_include_vat: false,
             line_items: [
                 {
                     product_id: "",
@@ -136,6 +150,7 @@ const SalesOrders = () => {
                 },
             ],
             subtotal: 0.0,
+            vat_total: 0.0,
             grand_total: 0.0, // Changed from grandtotal to grand_total
         });
     };
@@ -149,6 +164,7 @@ const SalesOrders = () => {
             customer: "",
             order_date: "",
             status: "draft",
+            prices_include_vat: false,
             line_items: [
                 {
                     product_id: "",
@@ -159,6 +175,7 @@ const SalesOrders = () => {
                 },
             ],
             subtotal: 0.0,
+            vat_total: 0.0,
             grand_total: 0.0, // Changed from grandtotal to grand_total
         });
     };
@@ -221,7 +238,7 @@ const SalesOrders = () => {
                                                 key={customer.id}
                                                 value={customer.id}
                                             >
-                                                {customer.name}
+                                                {customer.id} - {customer.name}
                                             </option>
                                         ))
                                     )}
@@ -310,7 +327,7 @@ const SalesOrders = () => {
                                                         key={product.id}
                                                         value={product.id}
                                                     >
-                                                        {product.name}
+                                                        {product.code || product.id} - {product.name}
                                                     </option>
                                                 ))
                                             )}
@@ -414,6 +431,22 @@ const SalesOrders = () => {
                         ))}
 
                         <div className="mt-4">
+                            <label className="inline-flex items-center">
+                                <input
+                                    type="checkbox"
+                                    className="form-checkbox"
+                                    checked={salesOrder.prices_include_vat}
+                                    onChange={(e) => {
+                                        const next = { ...salesOrder, prices_include_vat: e.target.checked };
+                                        setSalesOrder(next);
+                                        calculateTotalsForLineItems(next.line_items);
+                                    }}
+                                />
+                                <span className="ml-2 text-sm text-gray-700">Prices include VAT</span>
+                            </label>
+                        </div>
+
+                        <div className="mt-4">
                             <button
                                 type="button"
                                 onClick={handleAddLineItem}
@@ -439,6 +472,26 @@ const SalesOrders = () => {
                                     readOnly
                                     className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-100"
                                     value={salesOrder.subtotal || 0.0}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-4">
+                            <label
+                                htmlFor="vat_total"
+                                className="block text-sm font-medium text-gray-700"
+                            >
+                                VAT Total
+                            </label>
+                            <div className="mt-1">
+                                <input
+                                    id="vat_total"
+                                    name="vat_total"
+                                    type="number"
+                                    step="0.01"
+                                    readOnly
+                                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-100"
+                                    value={salesOrder.vat_total || 0.0}
                                 />
                             </div>
                         </div>
@@ -486,6 +539,12 @@ const SalesOrders = () => {
                                     scope="col"
                                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                                 >
+                                    Order #
+                                </th>
+                                <th
+                                    scope="col"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
                                     Customer
                                 </th>
                                 <th
@@ -510,7 +569,19 @@ const SalesOrders = () => {
                                     scope="col"
                                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                                 >
+                                    VAT
+                                </th>
+                                <th
+                                    scope="col"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
                                     Grand Total
+                                </th>
+                                <th
+                                    scope="col"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
+                                    Profit
                                 </th>
                                 <th
                                     scope="col"
@@ -523,6 +594,9 @@ const SalesOrders = () => {
                         <tbody className="bg-white divide-y divide-gray-200">
                             {salesOrders.map((salesOrder) => (
                                 <tr key={salesOrder.id}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        {salesOrder.order_number || 'N/A'}
+                                    </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         {getCustomerName(salesOrder.customer)}
                                     </td>
@@ -536,7 +610,13 @@ const SalesOrders = () => {
                                         {formatCurrency(salesOrder.subtotal)}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
+                                        {formatCurrency(salesOrder.vat_total)}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
                                         {formatCurrency(salesOrder.grand_total)}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        {formatCurrency(salesOrder.profit)}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <button

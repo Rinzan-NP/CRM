@@ -3,16 +3,28 @@ from rest_framework.views import APIView
 from rest_framework import status
 from django.db.models import Sum, Count, Avg
 from django.utils.dateparse import parse_date
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Invoice, Payment, PurchaseOrder, Route, RouteVisit, SalesOrder
-from .serializers import InvoiceSerializer, PaymentSerializer, PurchaseOrderSerializer, RouteSerializer, RouteVisitSerializer, SalesOrderSerializer
+from .models import Invoice, Payment, PurchaseOrder, Route, RouteVisit, SalesOrder, RouteLocationPing
+from .serializers import (
+    InvoiceSerializer, PaymentSerializer, PurchaseOrderSerializer,
+    RouteSerializer, RouteVisitSerializer, SalesOrderSerializer,
+    RouteLocationPingSerializer
+)
 
 class SalesOrderViewSet(viewsets.ModelViewSet):
     queryset = SalesOrder.objects.all()
     serializer_class = SalesOrderSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        if role == 'salesperson':
+            return qs.filter(salesperson=user)
+        return qs
 
     def get_serializer(self, *args, **kwargs):
         # Ensure the request context is passed to the serializer
@@ -30,6 +42,28 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseOrderSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        return [IsAuthenticated()]
+
+    def has_write_access(self):
+        role = getattr(self.request.user, 'role', '')
+        return role in ('admin', 'accountant')
+
+    def create(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().destroy(request, *args, **kwargs)
+
     def get_serializer(self, *args, **kwargs):
         # Ensure the request context is passed to the serializer
         kwargs['context'] = self.get_serializer_context()
@@ -41,16 +75,78 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     serializer_class = InvoiceSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        if role == 'salesperson':
+            return qs.filter(sales_order__salesperson=user)
+        return qs
+
+    def has_write_access(self):
+        role = getattr(self.request.user, 'role', '')
+        return role in ('admin', 'accountant')
+
+    def create(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().destroy(request, *args, **kwargs)
+
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        if role == 'salesperson':
+            return qs.filter(invoice__sales_order__salesperson=user)
+        return qs
+
+    def has_write_access(self):
+        role = getattr(self.request.user, 'role', '')
+        return role in ('admin', 'accountant')
+
+    def create(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if not self.has_write_access():
+            return Response({'detail': 'Forbidden'}, status=403)
+        return super().destroy(request, *args, **kwargs)
     
 
 class RouteViewSet(viewsets.ModelViewSet):
     queryset = Route.objects.all()
     serializer_class = RouteSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        if role == 'salesperson':
+            return qs.filter(salesperson=user)
+        return qs
 
     @action(detail=True, methods=["get"])
     def visits(self, request, pk=None):
@@ -63,7 +159,27 @@ class RouteVisitViewSet(viewsets.ModelViewSet):
     queryset = RouteVisit.objects.all()
     serializer_class = RouteVisitSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        if role == 'salesperson':
+            return qs.filter(route__salesperson=user)
+        return qs
     
+
+class RouteLocationPingViewSet(viewsets.ModelViewSet):
+    queryset = RouteLocationPing.objects.all()
+    serializer_class = RouteLocationPingSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        qs = super().get_queryset()
+        route_id = self.request.query_params.get('route')
+        if route_id:
+            qs = qs.filter(route_id=route_id)
+        return qs.order_by('-created_at')
 
 
 
@@ -83,47 +199,44 @@ class VATReportView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        qs = Invoice.objects.filter(
+        # Get invoices in the date range
+        invoices = Invoice.objects.filter(
             issue_date__gte=start,
             issue_date__lte=end
-        ).select_related("sales_order__line_items__product__vat_category")
-
-        raw = (
-            qs.values("sales_order__line_items__product__vat_category__category")
-            .annotate(total_sales=Sum("amount_due"))
-            .annotate(total_vat=Sum("vat_total"))
-        )
+        ).select_related('sales_order')
 
         report = {
             "period_start": str(start),
-            "period_end":   str(end),
+            "period_end": str(end),
             "standard_sales": 0.0,
-            "standard_vat":   0.0,
-            "zero_sales":     0.0,
-            "zero_vat":       0.0,
-            "exempt_sales":   0.0,
-            "exempt_vat":     0.0,
+            "standard_vat": 0.0,
+            "zero_sales": 0.0,
+            "zero_vat": 0.0,
+            "exempt_sales": 0.0,
+            "exempt_vat": 0.0,
         }
 
-        for row in raw:
-            cat = row["sales_order__line_items__product__vat_category__category"]
-            sales = float(row["total_sales"] or 0)
-            vat = float(row["total_vat"] or 0)
-            if cat == "Standard":
-                report["standard_sales"] += sales
-                report["standard_vat"] += vat
-            elif cat == "Zero":
-                report["zero_sales"] += sales
-                report["zero_vat"] += vat
-            elif cat == "Exempt":
-                report["exempt_sales"] += sales
-                report["exempt_vat"] += vat
+        for invoice in invoices:
+            sales_order = invoice.sales_order
+            # Calculate VAT by category for each line item
+            for line_item in sales_order.line_items.select_related('product__vat_category'):
+                category = line_item.product.vat_category.category.lower()
+                line_total = float(line_item.line_total)
+                vat_rate = line_item.product.vat_category.rate
+                vat_amount = line_total * float(vat_rate) / 100
 
-        return Response(report,status=status.HTTP_200_OK)
-    
-    
-# # Add these views to transactions/views.py
+                if 'standard' in category:
+                    report["standard_sales"] += line_total
+                    report["standard_vat"] += vat_amount
+                elif 'zero' in category:
+                    report["zero_sales"] += line_total
+                    report["zero_vat"] += vat_amount
+                elif 'exempt' in category:
+                    report["exempt_sales"] += line_total
+                    report["exempt_vat"] += vat_amount
 
+        return Response(report, status=status.HTTP_200_OK)
+    
 
 
 class SalesVsPurchaseReportView(APIView):

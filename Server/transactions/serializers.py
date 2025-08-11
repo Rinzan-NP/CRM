@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Invoice, Payment, PurchaseOrder, PurchaseOrderLineItem, Route, RouteVisit, SalesOrder, OrderLineItem
+from .models import Invoice, Payment, PurchaseOrder, PurchaseOrderLineItem, Route, RouteVisit, SalesOrder, OrderLineItem, RouteLocationPing
 from main.models import Product
 from main.serializers import CustomerSerializer, ProductSerializer
 
@@ -24,10 +24,10 @@ class SalesOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = SalesOrder
         fields = [
-            'id', 'customer', 'salesperson', 'order_date', 'status',
-            'subtotal', 'vat_total', 'grand_total', 'profit', 'line_items'
+            'id', 'order_number', 'customer', 'salesperson', 'order_date', 'status',
+            'subtotal', 'vat_total', 'grand_total', 'profit', 'prices_include_vat', 'line_items'
         ]
-        read_only_fields = ['subtotal', 'vat_total', 'grand_total', 'profit', 'salesperson']
+        read_only_fields = ['subtotal', 'vat_total', 'grand_total', 'profit', 'salesperson', 'order_number']
 
     def create(self, validated_data):
         line_data = validated_data.pop('line_items', [])
@@ -62,10 +62,10 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = PurchaseOrder
         fields = [
-            'id', 'supplier', 'order_date', 'status',
-            'subtotal', 'vat_total', 'grand_total', 'line_items'
+            'id', 'order_number', 'supplier', 'order_date', 'status',
+            'subtotal', 'vat_total', 'grand_total', 'prices_include_vat', 'line_items'
         ]
-        read_only_fields = ['subtotal', 'vat_total', 'grand_total']
+        read_only_fields = ['subtotal', 'vat_total', 'grand_total', 'order_number']
 
     def create(self, validated_data):
         line_data = validated_data.pop('line_items', [])
@@ -74,6 +74,7 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             PurchaseOrderLineItem.objects.create(purchase_order=po, **item)
         po.calculate_totals()
         po.save(update_fields=['subtotal', 'vat_total', 'grand_total'])
+
         return po
     
 
@@ -91,7 +92,20 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'id', 'sales_order', 'invoice_no', 'issue_date', 'due_date',
             'amount_due', 'paid_amount', 'outstanding', 'status', 'payments'
         ]
-        read_only_fields = ['invoice_no', 'amount_due', 'paid_amount', 'outstanding', 'status']
+        read_only_fields = ['amount_due', 'paid_amount', 'outstanding', 'status', 'invoice_no']
+
+    def create(self, validated_data):
+        # Generate invoice number if not provided
+        if not validated_data.get('invoice_no'):
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d')
+            validated_data['invoice_no'] = f"INV-{timestamp}"
+        
+        # Set amount_due from sales order
+        if validated_data.get('sales_order') and not validated_data.get('amount_due'):
+            validated_data['amount_due'] = validated_data['sales_order'].grand_total
+            
+        return super().create(validated_data)
         
 
 class RouteVisitSerializer(serializers.ModelSerializer):
@@ -122,3 +136,13 @@ class RouteSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['salesperson'] = self.context['request'].user
         return super().create(validated_data)
+
+
+class RouteLocationPingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RouteLocationPing
+        fields = [
+            'id', 'route', 'visit', 'lat', 'lon', 'accuracy_meters',
+            'speed_mps', 'heading_degrees', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']

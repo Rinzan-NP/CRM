@@ -23,12 +23,14 @@ api.interceptors.response.use(response => {
 }, (error) => {
   if (error.response.status === 401) {
     // Token has expired; attempt to refresh it
-    api.post('/accounts/refresh/', { refresh: localStorage.getItem('refresh') })
+    const originalRequest = error.config;
+    return api.post('/accounts/refresh/', { refresh: localStorage.getItem('refresh') })
       .then((refreshResponse) => {
         // Refreshed token successfully; retry the original request
         localStorage.setItem('token', refreshResponse.data.access);
         localStorage.setItem('refresh', refreshResponse.data.refresh);
-        return api(config);
+        originalRequest.headers['Authorization'] = `Bearer ${refreshResponse.data.access}`;
+        return api(originalRequest);
       })
       .catch((refreshError) => {
         // Refresh failed; log out and redirect to login
@@ -38,7 +40,7 @@ api.interceptors.response.use(response => {
         window.location.href = '/login'; // Redirect to login page
       });
   }
-  throw error;
+  return Promise.reject(error);
 });
 
 export default api;

@@ -11,6 +11,6 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         # Admins see everything, others see only their own actions
         user = self.request.user
-        if user.role == 'Admin':
+        if getattr(user, 'role', '') == 'admin':
             return self.queryset
-        return self.queryset.filter()
+        return self.queryset.filter(user=user)

@@ -155,8 +155,8 @@ const RouteVisits = () => {
     const { routeVisits, loading: loadingRouteVisits } = useSelector(
         (state) => state.routeVisits
     );
-    const { routes } = useSelector((state) => state.routes);
-    const { customers } = useSelector((state) => state.customers);
+    const { routes, loading: loadingRoutes } = useSelector((state) => state.routes);
+    const { customers, loading: loadingCustomers } = useSelector((state) => state.customers);
     const dispatch = useDispatch();
     const [routeVisit, setRouteVisit] = useState({
         route: "",
@@ -353,11 +353,18 @@ const RouteVisits = () => {
                                     onChange={handleInputChange}
                                 >
                                     <option value="">Select Route</option>
-                                    {routes.map((route) => (
-                                        <option key={route.id} value={route.id}>
-                                            {route.name}
-                                        </option>
-                                    ))}
+                                    {loadingRoutes ? (
+                                        <option value="">Loading...</option>
+                                    ) : (
+                                        routes.map((route) => (
+                                            <option
+                                                key={route.id}
+                                                value={route.id}
+                                            >
+                                                {route.id} - {route.name} ({route.date})
+                                            </option>
+                                        ))
+                                    )}
                                 </select>
                             </div>
                         </div>
@@ -379,14 +386,18 @@ const RouteVisits = () => {
                                     onChange={handleInputChange}
                                 >
                                     <option value="">Select Customer</option>
-                                    {customers.map((customer) => (
-                                        <option
-                                            key={customer.id}
-                                            value={customer.id}
-                                        >
-                                            {customer.name}
-                                        </option>
-                                    ))}
+                                    {loadingCustomers ? (
+                                        <option value="">Loading...</option>
+                                    ) : (
+                                        customers.map((customer) => (
+                                            <option
+                                                key={customer.id}
+                                                value={customer.id}
+                                            >
+                                                {customer.id} - {customer.name}
+                                            </option>
+                                        ))
+                                    )}
                                 </select>
                             </div>
                         </div>

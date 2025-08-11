@@ -6,7 +6,7 @@ import { fetchInvoices } from '../redux/invoicesSlice';
 
 const Payments = () => {
   const { payments, loading: loadingPayments } = useSelector((state) => state.payments);
-  const { invoices } = useSelector((state) => state.invoices);
+  const { invoices, loading: loadingInvoices } = useSelector((state) => state.invoices);
   const dispatch = useDispatch();
   const [payment, setPayment] = useState({
     invoice: '',
@@ -21,6 +21,16 @@ const Payments = () => {
     dispatch(fetchPayments());
     dispatch(fetchInvoices());
   }, [dispatch]);
+
+  const getCustomerName = (customer) => {
+    if (!customer) return 'N/A';
+    return `${customer.first_name} ${customer.last_name}`;
+  };
+
+  const formatCurrency = (value) => {
+    const num = parseFloat(value);
+    return isNaN(num) ? '0.00' : num.toFixed(2);
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -98,11 +108,18 @@ const Payments = () => {
                   onChange={handleInputChange}
                 >
                   <option value="">Select Invoice</option>
-                  {invoices.map((invoice) => (
-                    <option key={invoice.id} value={invoice.id}>
-                      {invoice.invoice_no}
-                    </option>
-                  ))}
+                                    {loadingInvoices ? (
+                                        <option value="">Loading...</option>
+                                    ) : (
+                                        invoices.map((invoice) => (
+                                            <option
+                                                key={invoice.id}
+                                                value={invoice.id}
+                                            >
+                                                {invoice.invoice_no || invoice.id} - {getCustomerName(invoice.sales_order?.customer)} - ${formatCurrency(invoice.amount_due)}
+                                            </option>
+                                        ))
+                                    )}
                 </select>
               </div>
             </div>
