@@ -28,6 +28,8 @@ const Invoices = () => {
 
   const handleCreateInvoice = async (e) => {
     e.preventDefault();
+    console.log(invoice);
+    
     await dispatch(createInvoice(invoice));
     setInvoice({
       sales_order: '',

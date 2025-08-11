@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models
 
 # Create your models here.
@@ -40,14 +41,20 @@ class SalesOrder(BaseModel):
 
     def save(self, *args, **kwargs):
         if not self.order_number:
-            # Generate order number if not provided
             from datetime import datetime
             timestamp = datetime.now().strftime('%Y%m%d')
-            # Get count of orders for today
+            # Ensure unique order_number for the day
             today_orders = SalesOrder.objects.filter(
                 order_date=self.order_date
             ).count()
-            self.order_number = f"SO-{timestamp}-{today_orders + 1:03d}"
+            base_order_number = f"SO-{timestamp}-{today_orders + 1:03d}"
+            # Check for duplicates and increment if needed
+            order_number = base_order_number
+            counter = today_orders + 1
+            while SalesOrder.objects.filter(order_number=order_number).exists():
+                counter += 1
+                order_number = f"SO-{timestamp}-{counter:03d}"
+            self.order_number = order_number
         super().save(*args, **kwargs)
 
     def calculate_totals(self):
@@ -136,14 +143,20 @@ class PurchaseOrder(BaseModel):
 
     def save(self, *args, **kwargs):
         if not self.order_number:
-            # Generate order number if not provided
             from datetime import datetime
             timestamp = datetime.now().strftime('%Y%m%d')
-            # Get count of orders for today
+            # Ensure unique order_number for the day
             today_orders = PurchaseOrder.objects.filter(
                 order_date=self.order_date
             ).count()
-            self.order_number = f"PO-{timestamp}-{today_orders + 1:03d}"
+            base_order_number = f"PO-{timestamp}-{today_orders + 1:03d}"
+            # Check for duplicates and increment if needed
+            order_number = base_order_number
+            counter = today_orders + 1
+            while PurchaseOrder.objects.filter(order_number=order_number).exists():
+                counter += 1
+                order_number = f"PO-{timestamp}-{counter:03d}"
+            self.order_number = order_number
         super().save(*args, **kwargs)
 
     def calculate_totals(self):
@@ -214,7 +227,7 @@ class Invoice(BaseModel):
 
     @property
     def outstanding(self):
-        return max(self.amount_due - self.paid_amount, 0)
+        return max(Decimal(self.amount_due) - Decimal(self.paid_amount), 0)
 
     def mark_paid(self, amount):
         self.paid_amount += amount
@@ -223,20 +236,20 @@ class Invoice(BaseModel):
         self.save(update_fields=["paid_amount", "status"])
         
     def save(self, *args, **kwargs):
-        # Generate invoice number if not provided
-        if not self.invoice_no:
-            from datetime import datetime
-            timestamp = datetime.now().strftime('%Y%m%d')
-            # Get count of invoices for today
-            today_invoices = Invoice.objects.filter(
-                issue_date=self.issue_date
-            ).count()
-            self.invoice_no = f"INV-{timestamp}-{today_invoices + 1:03d}"
-        
+        from datetime import datetime
+        timestamp = datetime.now().strftime('%Y%m%d')
+        # Always ensure invoice_no is unique
+        if not self.invoice_no or Invoice.objects.filter(invoice_no=self.invoice_no).exclude(pk=self.pk).exists():
+            counter = 1
+            while True:
+                candidate = f"INV-{timestamp}-{counter:03d}"
+                if not Invoice.objects.filter(invoice_no=candidate).exists():
+                    self.invoice_no = candidate
+                    break
+                counter += 1
         # Set amount_due from sales order if not set
         if not self.amount_due and self.sales_order:
             self.amount_due = self.sales_order.grand_total
-            
         super().save(*args, **kwargs)
 
 

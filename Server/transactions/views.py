@@ -85,7 +85,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     def has_write_access(self):
         role = getattr(self.request.user, 'role', '')
-        return role in ('admin', 'accountant')
+        return role in ('admin', 'accountant','salesperson')
 
     def create(self, request, *args, **kwargs):
         if not self.has_write_access():
