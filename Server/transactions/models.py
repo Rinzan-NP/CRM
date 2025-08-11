@@ -42,14 +42,17 @@ class SalesOrder(BaseModel):
         lines = self.line_items.select_related("product__vat_category")
         subtotal = sum(l.line_total for l in lines)
         vat_total = 0
+        total_cost = 0
         for l in lines:
             vat_rate = l.product.vat_category.rate
             vat_total += l.line_total * vat_rate / 100
+            # compute cost using product.unit_cost
+            total_cost += (getattr(l.product, "unit_cost", 0) or 0) * l.quantity
         self.subtotal = subtotal
         self.vat_total = vat_total
         self.grand_total = subtotal + vat_total
-        # placeholder profit = subtotal - cost (cost not implemented yet)
-        self.profit = subtotal  # remove once cost is tracked
+        # profit = revenue - cost
+        self.profit = subtotal - total_cost
 
 
 class OrderLineItem(BaseModel):
@@ -167,6 +170,26 @@ class Invoice(BaseModel):
         if self.paid_amount >= self.amount_due:
             self.status = "paid"
         self.save(update_fields=["paid_amount", "status"])
+        
+    def save(self, *args, **kwargs):
+        # Generate invoice number if not provided
+        if not self.invoice_no:
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+            # Use a temporary ID if not saved yet
+            temp_id = str(self.id) if self.id else 'TEMP'
+            self.invoice_no = f"INV-{timestamp}-{temp_id[:6]}"
+        
+        # Set amount_due from sales order if not set
+        if not self.amount_due and self.sales_order:
+            self.amount_due = self.sales_order.grand_total
+            
+        super().save(*args, **kwargs)
+        
+        # Update invoice number with actual ID if it was temporary
+        if self.invoice_no and 'TEMP' in self.invoice_no:
+            self.invoice_no = self.invoice_no.replace('TEMP', str(self.id)[:6])
+            super().save(update_fields=['invoice_no'])
 
 
 class Payment(BaseModel):
@@ -210,11 +233,18 @@ class RouteVisit(BaseModel):
     lon       = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     status    = models.CharField(max_length=10, choices=STATUS_CHOICES, default="planned")
 
-    class Meta:
-        unique_together = ("route", "customer")
-        indexes = [
-            models.Index(fields=["route", "status"]),
-        ]
 
-    def __str__(self):
-        return f"{self.customer} on {self.route}"
+class RouteLocationPing(BaseModel):
+    """Live GPS pings during a route visit"""
+    route = models.ForeignKey(Route, related_name="location_pings", on_delete=models.CASCADE)
+    visit = models.ForeignKey(RouteVisit, related_name="location_pings", on_delete=models.SET_NULL, null=True, blank=True)
+    lat = models.DecimalField(max_digits=9, decimal_places=6)
+    lon = models.DecimalField(max_digits=9, decimal_places=6)
+    accuracy_meters = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    speed_mps = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    heading_degrees = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["route", "created_at"]),
+        ]

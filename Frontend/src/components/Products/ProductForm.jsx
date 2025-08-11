@@ -12,6 +12,7 @@ export default function ProductForm({ vatCategories, edit, onDone }) {
     code: '',
     name: '',
     unit_price: '',
+    unit_cost: '',
     vat_category: 1,
     is_active: true,
   });
@@ -23,6 +24,7 @@ export default function ProductForm({ vatCategories, edit, onDone }) {
         code: '',
         name: '',
         unit_price: '',
+        unit_cost: '',
         vat_category: 1,
         is_active: true,
       });
@@ -66,6 +68,16 @@ export default function ProductForm({ vatCategories, edit, onDone }) {
           label="Unit Price"
           placeholder="0.00"
           value={product.unit_price}
+          onChange={handle}
+          required
+        />
+        <Input
+          name="unit_cost"
+          type="number"
+          step="0.01"
+          label="Unit Cost"
+          placeholder="0.00"
+          value={product.unit_cost}
           onChange={handle}
           required
         />

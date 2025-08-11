@@ -15,6 +15,8 @@ import Payments from "../pages/Payments";
 import Roote from "../pages/Routes"; // Assuming you have a Routes component
 import RouteVisits from "../pages/RouteVisits"; // Import the RouteVisits component
 import AuditLogs from "../pages/AuditLoges";
+import Reports from "../pages/Reports";
+import RouteLiveTracker from "../pages/RouteLiveTracker";
 
 const MainRouter = () => {
     return (
@@ -108,10 +110,26 @@ const MainRouter = () => {
                 }
             />
             <Route
+                path="/transactions/route-live-tracker"
+                element={
+                    <PrivateRouter>
+                        <RouteLiveTracker />
+                    </PrivateRouter>
+                }
+            />
+            <Route
                 path="/audit/audit-logs"
                 element={
                     <PrivateRouter>
                         <AuditLogs />
+                    </PrivateRouter>
+                }
+            />
+            <Route
+                path="/reports"
+                element={
+                    <PrivateRouter>
+                        <Reports />
                     </PrivateRouter>
                 }
             />
