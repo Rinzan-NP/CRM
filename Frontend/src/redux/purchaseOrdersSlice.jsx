@@ -18,6 +18,8 @@ export const createPurchaseOrder = createAsyncThunk(
   'purchaseOrders/createPurchaseOrder',
   async (purchaseOrder, { rejectWithValue }) => {
     try {
+      console.log(purchaseOrder);
+      
       const response = await api.post('/transactions/purchase-orders/', purchaseOrder);
       return response.data;
     } catch (error) {

@@ -128,10 +128,10 @@ class RouteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Route
         fields = [
-            'id', 'salesperson', 'name', 'date',
+            'id', 'route_number', 'salesperson', 'name', 'date',
             'start_time', 'end_time', 'visits'
         ]
-        read_only_fields = ['id','salesperson']
+        read_only_fields = ['id', 'route_number', 'salesperson']
         
     def create(self, validated_data):
         validated_data['salesperson'] = self.context['request'].user

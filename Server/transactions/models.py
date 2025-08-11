@@ -265,6 +265,8 @@ class Payment(BaseModel):
         
         
 class Route(BaseModel):
+    # Human-readable ID for display
+    route_number = models.CharField(max_length=20, unique=True, blank=True)
     salesperson = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     name        = models.CharField(max_length=100)
     date        = models.DateField()
@@ -273,11 +275,24 @@ class Route(BaseModel):
 
     class Meta:
         indexes = [
+            models.Index(fields=["route_number"]),
             models.Index(fields=["salesperson", "date"]),
         ]
 
     def __str__(self):
-        return f"{self.name} - {self.date}"
+        return self.route_number or f"{self.name} - {self.date}"
+
+    def save(self, *args, **kwargs):
+        if not self.route_number:
+            # Generate route number if not provided
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d')
+            # Get count of routes for today
+            today_routes = Route.objects.filter(
+                date=self.date
+            ).count()
+            self.route_number = f"RT-{timestamp}-{today_routes + 1:03d}"
+        super().save(*args, **kwargs)
 
 
 class RouteVisit(BaseModel):
