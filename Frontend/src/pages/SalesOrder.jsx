@@ -1,5 +1,5 @@
 // src/pages/SalesOrders.js
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
     fetchSalesOrders,
@@ -60,12 +60,27 @@ const SalesOrders = () => {
     const [editMode, setEditMode] = useState(false);
     const [editId, setEditId] = useState(null);
     const [showForm, setShowForm] = useState(false);
+    
+    // Ref for the form section to enable scrolling
+    const formRef = useRef(null);
 
     useEffect(() => {
         dispatch(fetchSalesOrders());
         dispatch(fetchProducts());
         dispatch(fetchCustomers());
     }, [dispatch]);
+
+    // Scroll to form when it's shown
+    useEffect(() => {
+        if (showForm && formRef.current) {
+            setTimeout(() => {
+                formRef.current.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start' 
+                });
+            }, 100); // Small delay to ensure form is rendered
+        }
+    }, [showForm]);
 
     // Helper function to get customer name by ID
     const getCustomerName = (customerId) => {
@@ -211,6 +226,11 @@ const SalesOrders = () => {
         setShowForm(true);
     };
 
+    const handleShowNewOrderForm = () => {
+        setEditMode(false);
+        setShowForm(true);
+    };
+
     // Helper function to safely format numbers
     const formatCurrency = (value) => {
         const num = parseFloat(value);
@@ -308,10 +328,7 @@ const SalesOrders = () => {
                     actions={[
                         <button
                             key="add"
-                            onClick={() => {
-                                setEditMode(false);
-                                setShowForm(true);
-                            }}
+                            onClick={handleShowNewOrderForm}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
                         >
                             <Plus className="h-4 w-4" />
@@ -382,7 +399,7 @@ const SalesOrders = () => {
                 </div>
 
                 {showForm && (
-                    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                    <div ref={formRef} className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
                         <div className="flex items-center justify-between mb-6">
                             <h3 className="text-lg font-semibold text-slate-900">
                                 {editMode ? 'Edit Sales Order' : 'Create New Sales Order'}
