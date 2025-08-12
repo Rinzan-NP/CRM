@@ -7,7 +7,16 @@ import {
   updateSupplier, 
   deleteSupplier 
 } from '../redux/suppliersSlice';
-import { FiPlus, FiSearch, FiX } from 'react-icons/fi';
+import { 
+  FiPlus, 
+  FiSearch, 
+  FiX, 
+  FiBriefcase, 
+  FiFilter, 
+  FiDownload, 
+  FiRefreshCw, 
+  FiTruck 
+} from 'react-icons/fi';
 import SupplierForm from '../components/Suppliers/SupplierForm';
 import SupplierTable from '../components/Suppliers/SupplierTable';
 import Modal from '../components/Common/Modal';
