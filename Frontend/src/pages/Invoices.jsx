@@ -8,7 +8,8 @@ import StatsCard from '../components/ui/StatsCard';
 import DataTable from '../components/ui/DataTable';
 import FormField from '../components/ui/FormField';
 import ChartCard from '../components/ui/ChartCard';
-import { FileText, DollarSign, Plus, Edit, Trash2, X } from 'lucide-react';
+import Modal from '../components/Common/Modal';
+import { FileText, DollarSign, Plus, Edit, Trash2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const Invoices = () => {
@@ -22,7 +23,7 @@ const Invoices = () => {
   });
   const [editMode, setEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [showForm, setShowForm] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     dispatch(fetchInvoices());
@@ -37,25 +38,15 @@ const Invoices = () => {
   const handleCreateInvoice = async (e) => {
     e.preventDefault();
     await dispatch(createInvoice(invoice));
-    setInvoice({
-      sales_order: '',
-      issue_date: '',
-      due_date: '',
-    });
-    setShowForm(false);
+    resetForm();
+    setShowModal(false);
   };
 
   const handleUpdateInvoice = async (e) => {
     e.preventDefault();
     await dispatch(updateInvoice({ id: editId, ...invoice }));
-    setEditMode(false);
-    setEditId(null);
-    setInvoice({
-      sales_order: '',
-      issue_date: '',
-      due_date: '',
-    });
-    setShowForm(false);
+    resetForm();
+    setShowModal(false);
   };
 
   const handleDeleteInvoice = async (id) => {
@@ -70,7 +61,17 @@ const Invoices = () => {
       issue_date: row.issue_date,
       due_date: row.due_date,
     });
-    setShowForm(true);
+    setShowModal(true);
+  };
+
+  const resetForm = () => {
+    setEditMode(false);
+    setEditId(null);
+    setInvoice({
+      sales_order: '',
+      issue_date: '',
+      due_date: '',
+    });
   };
 
   const getOrderDisplay = (orderId) => {
@@ -170,7 +171,7 @@ const Invoices = () => {
           actions={[
             <button
               key="add"
-              onClick={() => { setEditMode(false); setShowForm(true); }}
+              onClick={() => { resetForm(); setShowModal(true); }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
             >
               <Plus className="h-4 w-4" />
@@ -214,79 +215,74 @@ const Invoices = () => {
           </div>
         </div>
 
-        {showForm && (
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-slate-900">{editMode ? 'Edit Invoice' : 'Create New Invoice'}</h3>
-              <button onClick={() => setShowForm(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
-                <X className="h-5 w-5" />
-              </button>
+        <Modal 
+          isOpen={showModal} 
+          onClose={() => setShowModal(false)}
+          title={editMode ? 'Edit Invoice' : 'Create New Invoice'}
+        >
+          <form onSubmit={editMode ? handleUpdateInvoice : handleCreateInvoice} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField label="Sales Order" required>
+                <select
+                  name="sales_order"
+                  required
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={invoice.sales_order}
+                  onChange={handleInputChange}
+                >
+                  <option value="">Select Sales Order</option>
+                  {loadingSalesOrders ? (
+                    <option value="">Loading...</option>
+                  ) : (
+                    salesOrders.map((salesOrder) => (
+                      <option key={salesOrder.id} value={salesOrder.id}>
+                        {salesOrder.order_number || salesOrder.id}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </FormField>
+
+              <FormField label="Issue Date" required>
+                <input
+                  type="date"
+                  name="issue_date"
+                  required
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={invoice.issue_date}
+                  onChange={handleInputChange}
+                />
+              </FormField>
+
+              <FormField label="Due Date" required>
+                <input
+                  type="date"
+                  name="due_date"
+                  required
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={invoice.due_date}
+                  onChange={handleInputChange}
+                />
+              </FormField>
             </div>
 
-            <form onSubmit={editMode ? handleUpdateInvoice : handleCreateInvoice} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField label="Sales Order" required>
-                  <select
-                    name="sales_order"
-                    required
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    value={invoice.sales_order}
-                    onChange={handleInputChange}
-                  >
-                    <option value="">Select Sales Order</option>
-                    {loadingSalesOrders ? (
-                      <option value="">Loading...</option>
-                    ) : (
-                      salesOrders.map((salesOrder) => (
-                        <option key={salesOrder.id} value={salesOrder.id}>
-                          {salesOrder.order_number || salesOrder.id}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </FormField>
-
-                <FormField label="Issue Date" required>
-                  <input
-                    type="date"
-                    name="issue_date"
-                    required
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    value={invoice.issue_date}
-                    onChange={handleInputChange}
-                  />
-                </FormField>
-
-                <FormField label="Due Date" required>
-                  <input
-                    type="date"
-                    name="due_date"
-                    required
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    value={invoice.due_date}
-                    onChange={handleInputChange}
-                  />
-                </FormField>
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-                >
-                  {editMode ? 'Update Invoice' : 'Create Invoice'}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+              >
+                {editMode ? 'Update Invoice' : 'Create Invoice'}
+              </button>
+            </div>
+          </form>
+        </Modal>
 
         <DataTable
           data={invoices}
