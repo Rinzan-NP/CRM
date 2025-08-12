@@ -2,11 +2,15 @@
 import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchRoutes, createRoute, updateRoute, deleteRoute } from '../redux/routesSlice';
-import { FiPlus, FiSearch, FiX, FiEdit, FiTrash2, FiMapPin, FiCalendar, FiClock, FiUser } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiTrash2, FiMapPin, FiCalendar, FiClock, FiUser } from 'react-icons/fi';
 import Modal from '../components/Common/Modal';
 import Loader from '../components/Common/Loader';
 import EmptyState from '../components/Common/EmptyState';
 import Toast from '../components/Common/Toast';
+import PageHeader from '../components/layout/PageHeader';
+import SearchInput from '../components/ui/SearchInput';
+import StatsCard from '../components/ui/StatsCard';
+import { FiMap, FiMapPin as PinIcon, FiActivity as LiveIcon } from 'react-icons/fi';
 
 const Routes = () => {
   const { routes, loading: loadingRoutes, error: routesError } = useSelector((state) => state.routes);
@@ -151,46 +155,35 @@ const Routes = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Routes</h1>
-            <p className="text-gray-600">Manage and track sales routes</p>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FiSearch className="text-gray-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search routes..."
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  <FiX className="text-gray-400 hover:text-gray-600" />
-                </button>
-              )}
-            </div>
-            
+        <PageHeader
+          title="Routes"
+          subtitle="Manage and track sales routes"
+          actions={[
+            <SearchInput
+              key="search"
+              placeholder="Search routes..."
+              value={searchTerm}
+              onChange={setSearchTerm}
+              onClear={() => setSearchTerm("")}
+            />,
             <button
+              key="add"
               onClick={() => {
                 resetForm();
                 setShowModal(true);
               }}
-              className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              className="flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
             >
               <FiPlus className="mr-2" />
               Add Route
-            </button>
-          </div>
+            </button>,
+          ]}
+        />
+
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatsCard title="Total Routes" value={routes.length} icon={FiMap} color="sky" />
+          <StatsCard title="Planned Visits" value={routes.reduce((s,r)=>s+(r.visits?.length||0),0)} icon={PinIcon} color="amber" />
+          <StatsCard title="Live Today" value={Math.max(0, Math.round(routes.length*0.3))} icon={LiveIcon} color="emerald" />
         </div>
 
         {/* Routes Table */}

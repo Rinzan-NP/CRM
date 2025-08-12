@@ -3,11 +3,15 @@ import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPayments, createPayment, updatePayment, deletePayment } from '../redux/paymentsSlice';
 import { fetchInvoices } from '../redux/invoicesSlice';
-import { FiPlus, FiSearch, FiX, FiEdit, FiTrash2, FiDollarSign, FiCalendar, FiCreditCard } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiTrash2, FiDollarSign, FiCalendar, FiCreditCard } from 'react-icons/fi';
 import Modal from '../components/Common/Modal';
 import Loader from '../components/Common/Loader';
 import EmptyState from '../components/Common/EmptyState';
 import Toast from '../components/Common/Toast';
+import PageHeader from '../components/layout/PageHeader';
+import SearchInput from '../components/ui/SearchInput';
+import StatsCard from '../components/ui/StatsCard';
+import { FiDollarSign as DollarIcon } from 'react-icons/fi';
 
 const Payments = () => {
   const { payments, loading: loadingPayments, error: paymentsError } = useSelector((state) => state.payments);
@@ -201,46 +205,35 @@ const Payments = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
-            <p className="text-gray-600">Track and manage customer payments</p>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FiSearch className="text-gray-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search payments..."
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  <FiX className="text-gray-400 hover:text-gray-600" />
-                </button>
-              )}
-            </div>
-            
+        <PageHeader
+          title="Payments"
+          subtitle="Track and manage customer payments"
+          actions={[
+            <SearchInput
+              key="search"
+              placeholder="Search payments..."
+              value={searchTerm}
+              onChange={setSearchTerm}
+              onClear={() => setSearchTerm("")}
+            />,
             <button
+              key="add"
               onClick={() => {
                 resetForm();
                 setShowModal(true);
               }}
-              className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              className="flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
             >
               <FiPlus className="mr-2" />
               Add Payment
-            </button>
-          </div>
+            </button>,
+          ]}
+        />
+
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatsCard title="Total Payments" value={payments.length} icon={DollarIcon} color="emerald" />
+          <StatsCard title="Outstanding Invoices" value={availableInvoices.length} icon={DollarIcon} color="rose" />
+          <StatsCard title="Avg Payment" value={`$${(payments.reduce((s,p)=>s+parseFloat(p.amount||0),0)/(payments.length||1)).toFixed(2)}`} icon={DollarIcon} color="amber" />
         </div>
 
         {/* Payments Table */}

@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import GPSLocationTracker from '../components/GPSLocationTracker';
 import api from '../services/api';
+import PageHeader from '../components/layout/PageHeader';
 
 const RouteLiveTracker = () => {
   const [routeId, setRouteId] = useState('');
@@ -30,6 +31,7 @@ const RouteLiveTracker = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-2xl mx-auto space-y-6">
+        <PageHeader title="Route Live Tracker" subtitle="Send live GPS pings for active routes" />
         <div className="bg-white rounded-lg shadow p-6">
           <h1 className="text-2xl font-bold mb-4">Route Live Tracker</h1>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

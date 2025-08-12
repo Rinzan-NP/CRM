@@ -3,6 +3,9 @@ import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchInvoices, createInvoice, updateInvoice, deleteInvoice } from '../redux/invoicesSlice';
 import { fetchSalesOrders } from '../redux/salesOrdersSlice';
+import PageHeader from '../components/layout/PageHeader';
+import StatsCard from '../components/ui/StatsCard';
+import { FiFileText, FiDollarSign } from 'react-icons/fi';
 
 const Invoices = () => {
   const { invoices, loading: loadingInvoices } = useSelector((state) => state.invoices);
@@ -67,12 +70,15 @@ const Invoices = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Manage Invoices
-        </h2>
-      </div>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        <PageHeader title="Invoices" subtitle="Create and manage customer invoices" />
+
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatsCard title="Total Invoices" value={invoices.length} icon={FiFileText} color="violet" />
+          <StatsCard title="Amount Due" value={`$${invoices.reduce((s,i)=>s+parseFloat(i.amount_due||0),0).toFixed(2)}`} icon={FiDollarSign} color="rose" />
+          <StatsCard title="Paid" value={`$${invoices.reduce((s,i)=>s+parseFloat(i.paid_amount||0),0).toFixed(2)}`} icon={FiDollarSign} color="emerald" />
+        </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
@@ -161,7 +167,7 @@ const Invoices = () => {
         </div>
       </div>
 
-      <div className="mt-8">
+      <div className="mt-8 max-w-7xl mx-auto">
         <div className="bg-white shadow overflow-hidden sm:rounded-lg">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -222,6 +228,7 @@ const Invoices = () => {
           </table>
         </div>
       </div>
+    </div>
     </div>
   );
 };

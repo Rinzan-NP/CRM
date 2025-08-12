@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchAuditLogs } from '../redux/auditLogsSlice';
+import PageHeader from '../components/layout/PageHeader';
 
 const AuditLogs = () => {
   const { auditLogs, loading: loadingAuditLogs } = useSelector((state) => state.auditLogs);
@@ -11,14 +12,11 @@ const AuditLogs = () => {
   }, [dispatch]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-6xl">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Audit Logs
-        </h2>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        <PageHeader title="Audit Logs" subtitle="System activity and change history" />
       </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-6xl">
+      <div className="mt-4 max-w-7xl mx-auto">
         <div className="bg-white shadow overflow-hidden sm:rounded-lg">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import api from '../services/api';
+import PageHeader from '../components/layout/PageHeader';
 
 const Reports = () => {
   const [reports, setReports] = useState({
@@ -76,10 +77,7 @@ const Reports = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Reports & Analytics</h1>
-          <p className="mt-2 text-gray-600">Comprehensive business insights and performance metrics</p>
-        </div>
+        <PageHeader title="Reports & Analytics" subtitle="Comprehensive business insights and performance metrics" />
 
         {/* Date Range Selector */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">

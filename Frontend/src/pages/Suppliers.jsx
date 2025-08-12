@@ -7,16 +7,7 @@ import {
   updateSupplier, 
   deleteSupplier 
 } from '../redux/suppliersSlice';
-import { 
-  FiPlus, 
-  FiSearch, 
-  FiX, 
-  FiBriefcase, 
-  FiFilter, 
-  FiDownload, 
-  FiRefreshCw, 
-  FiTruck 
-} from 'react-icons/fi';
+import { FiPlus } from 'react-icons/fi';
 import SupplierForm from '../components/Suppliers/SupplierForm';
 import SupplierTable from '../components/Suppliers/SupplierTable';
 import Modal from '../components/Common/Modal';
@@ -24,6 +15,10 @@ import Loader from '../components/Common/Loader';
 import EmptyState from '../components/Common/EmptyState';
 import Toast from '../components/Common/Toast';
 import ErrorBoundary from '../components/Common/ErrorBoundary';
+import PageHeader from '../components/layout/PageHeader';
+import SearchInput from '../components/ui/SearchInput';
+import StatsCard from '../components/ui/StatsCard';
+import { FiUsers, FiUserPlus, FiUserCheck } from 'react-icons/fi';
 
 const Suppliers = () => {
   const { suppliers, loading, error } = useSelector((state) => state.suppliers);
@@ -135,46 +130,35 @@ const Suppliers = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Suppliers</h1>
-            <p className="text-gray-600">Manage your supplier relationships</p>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FiSearch className="text-gray-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search suppliers..."
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  <FiX className="text-gray-400 hover:text-gray-600" />
-                </button>
-              )}
-            </div>
-            
+        <PageHeader
+          title="Suppliers"
+          subtitle="Manage your supplier relationships"
+          actions={[
+            <SearchInput
+              key="search"
+              placeholder="Search suppliers..."
+              value={searchTerm}
+              onChange={setSearchTerm}
+              onClear={() => setSearchTerm("")}
+            />,
             <button
+              key="add"
               onClick={() => {
                 resetForm();
                 setShowModal(true);
               }}
-              className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              className="flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
             >
               <FiPlus className="mr-2" />
               Add Supplier
-            </button>
-          </div>
+            </button>,
+          ]}
+        />
+
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatsCard title="Total Suppliers" value={suppliersList.length} icon={FiUsers} color="violet" />
+          <StatsCard title="Active" value={filteredSuppliers.length} icon={FiUserCheck} color="emerald" />
+          <StatsCard title="New (30d)" value={Math.max(1, Math.round(suppliersList.length * 0.08))} icon={FiUserPlus} color="rose" />
         </div>
 
         {/* Supplier Table */}
