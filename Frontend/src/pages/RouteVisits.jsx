@@ -429,33 +429,7 @@ const RouteVisits = () => {
           <StatsCard title="Missed Visits" value={missedVisits} icon={XCircle} color="rose" />
         </div>
 
-        {/* <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Today's Route Map</h3>
-          <div className="h-96 relative rounded-lg overflow-hidden border border-slate-200">
-            <MapContainer
-              center={mapCenter}
-              zoom={13}
-              style={{ height: "100%", width: "100%" }}
-            >
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              />
-              <SearchBar onSearch={handleSearchResult} />
-              <LocationPicker
-                onLocationSelect={handleLocationSelect}
-                position={selectedPosition}
-              />
-            </MapContainer>
-          </div>
-          <div className="mt-3 text-sm text-slate-500">
-            {routeVisit.lat && routeVisit.lon ? (
-              <span>Selected location: {parseFloat(routeVisit.lat).toFixed(6)}, {parseFloat(routeVisit.lon).toFixed(6)}</span>
-            ) : (
-              <span>Search for a location or click on the map to select</span>
-            )}
-          </div>
-        </div> */}
+        
 
         <Modal 
           isOpen={showModal} 
