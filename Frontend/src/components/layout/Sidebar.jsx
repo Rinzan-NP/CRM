@@ -12,24 +12,32 @@ import {
   FiActivity,
   FiBarChart2,
 } from "react-icons/fi";
+import { useSelector } from "react-redux";
 
-const navItems = [
-  { label: "Dashboard", to: "/", icon: FiHome },
-  { label: "Customers", to: "/main/customers", icon: FiUsers },
-  { label: "Suppliers", to: "/main/suppliers", icon: FiUsers },
-  { label: "Products", to: "/main/products", icon: FiBox },
-  { label: "Sales Orders", to: "/transactions/sales-orders", icon: FiShoppingCart },
-  { label: "Purchase Orders", to: "/transactions/purchase-orders", icon: FiFileText },
-  { label: "Invoices", to: "/transactions/invoices", icon: FiDollarSign },
-  { label: "Payments", to: "/transactions/payments", icon: FiDollarSign },
-  { label: "Routes", to: "/transactions/routes", icon: FiMap },
-  { label: "Route Visits", to: "/transactions/route-visits", icon: FiMapPin },
-  // { label: "Live Tracker", to: "/transactions/route-live-tracker", icon: FiActivity },
-  { label: "Audit Logs", to: "/audit/audit-logs", icon: FiFileText },
-  { label: "Reports", to: "/reports", icon: FiBarChart2 },
-];
+const allNavItems = [
+  { label: "Dashboard", to: "/", icon: FiHome, roles: ["admin", "accountant", "salesperson"] },
+  { label: "Customers", to: "/main/customers", icon: FiUsers, roles: ["admin"] },
+  { label: "Suppliers", to: "/main/suppliers", icon: FiUsers, roles: ["admin"] },
+  { label: "Products", to: "/main/products", icon: FiBox, roles: ["admin"] },
+  { label: "Sales Orders", to: "/transactions/sales-orders", icon: FiShoppingCart, roles: ["admin", "accountant"] },
+  { label: "Purchase Orders", to: "/transactions/purchase-orders", icon: FiFileText, roles: ["admin", "accountant"] },
+  { label: "Invoices", to: "/transactions/invoices", icon: FiDollarSign, roles: ["admin", "accountant"] },
+  { label: "Payments", to: "/transactions/payments", icon: FiDollarSign, roles: ["admin", "accountant"] },
+  { label: "Routes", to: "/transactions/routes", icon: FiMap, roles: ["admin", "salesperson"] },
+  { label: "Route Visits", to: "/transactions/route-visits", icon: FiMapPin, roles: ["admin", "salesperson"] },
+  { label: "Audit Logs", to: "/audit/audit-logs", icon: FiFileText, roles: ["admin"] },
+  { label: "Reports", to: "/reports", icon: FiBarChart2, roles: ["admin"] },]
+
+
 
 const Sidebar = ({ isOpen, onClose }) => {
+  const userRole = useSelector((state) => state.auth.user?.role);
+  console.log(userRole);
+  
+  // Filter navigation items based on user role
+  const navItems = allNavItems.filter(item => 
+    item.roles.includes(userRole?.toLowerCase() || '')
+  );
   return (
     <aside
       className={`fixed inset-y-0 left-0 z-50 w-72 transform border-r border-slate-200 bg-white p-4 transition-transform duration-200 ease-out lg:translate-x-0 ${

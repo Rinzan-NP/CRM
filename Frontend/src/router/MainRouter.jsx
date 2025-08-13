@@ -1,141 +1,160 @@
-// src/components/MainRouter.js
 import { Routes, Route } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import NotFound from "../pages/NotFound";
-import LoginScreen from "../pages/Login";
-import Dashboard from "../pages/Dashboard";
 import PrivateRouter from "./PrivateRouter";
 import PublicRouter from "./PublicRouter";
-import Customers from "../pages/Customers";
-import Suppliers from "../pages/Suppliers";
-import Products from "../pages/Products";
-import SalesOrders from "../pages/SalesOrder";
-import PurchaseOrders from "../pages/PurchaseOrder";
-import Invoices from "../pages/Invoices";
-import Payments from "../pages/Payments";
-import Roote from "../pages/Routes"; // Assuming you have a Routes component
-import RouteVisits from "../pages/RouteVisits"; // Import the RouteVisits component
-import AuditLogs from "../pages/AuditLoges";
-import Reports from "../pages/Reports";
-import RouteLiveTracker from "../pages/RouteLiveTracker";
+
+// Lazy load components for better performance
+const LoginScreen = lazy(() => import("../pages/Login"));
+const Dashboard = lazy(() => import("../pages/Dashboard"));
+const Customers = lazy(() => import("../pages/Customers"));
+const Suppliers = lazy(() => import("../pages/Suppliers"));
+const Products = lazy(() => import("../pages/Products"));
+const SalesOrders = lazy(() => import("../pages/SalesOrder"));
+const PurchaseOrders = lazy(() => import("../pages/PurchaseOrder"));
+const Invoices = lazy(() => import("../pages/Invoices"));
+const Payments = lazy(() => import("../pages/Payments"));
+const RoutesPage = lazy(() => import("../pages/Routes")); // Renamed to avoid conflict with React Router's Routes
+const RouteVisits = lazy(() => import("../pages/RouteVisits"));
+const RouteLiveTracker = lazy(() => import("../pages/RouteLiveTracker"));
+const AuditLogs = lazy(() => import("../pages/AuditLogs")); // Fixed typo: AuditLoges -> AuditLogs
+const Reports = lazy(() => import("../pages/Reports"));
+
+// Loading component for suspense fallback
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+  </div>
+);
+
+// Helper component to wrap private routes
+const PrivateRoute = ({ children }) => (
+  <PrivateRouter>
+    <Suspense fallback={<LoadingSpinner />}>
+      {children}
+    </Suspense>
+  </PrivateRouter>
+);
+
+// Helper component to wrap public routes
+const PublicRoute = ({ children }) => (
+  <PublicRouter>
+    <Suspense fallback={<LoadingSpinner />}>
+      {children}
+    </Suspense>
+  </PublicRouter>
+);
+
+// Route configuration for better maintainability
+const routeConfig = [
+  // Public routes
+  {
+    path: "/login",
+    component: LoginScreen,
+    isPrivate: false
+  },
+  
+  // Dashboard
+  {
+    path: "/",
+    component: Dashboard,
+    isPrivate: true
+  },
+  
+  // Main section routes
+  {
+    path: "/main/customers",
+    component: Customers,
+    isPrivate: true
+  },
+  {
+    path: "/main/suppliers",
+    component: Suppliers,
+    isPrivate: true
+  },
+  {
+    path: "/main/products",
+    component: Products,
+    isPrivate: true
+  },
+  
+  // Transaction routes
+  {
+    path: "/transactions/sales-orders",
+    component: SalesOrders,
+    isPrivate: true
+  },
+  {
+    path: "/transactions/purchase-orders",
+    component: PurchaseOrders,
+    isPrivate: true
+  },
+  {
+    path: "/transactions/invoices",
+    component: Invoices,
+    isPrivate: true
+  },
+  {
+    path: "/transactions/payments",
+    component: Payments,
+    isPrivate: true
+  },
+  {
+    path: "/transactions/routes",
+    component: RoutesPage,
+    isPrivate: true
+  },
+  {
+    path: "/transactions/route-visits",
+    component: RouteVisits,
+    isPrivate: true
+  },
+  {
+    path: "/transactions/route-live-tracker",
+    component: RouteLiveTracker,
+    isPrivate: true
+  },
+  
+  // Audit routes
+  {
+    path: "/audit/audit-logs",
+    component: AuditLogs,
+    isPrivate: true
+  },
+  
+  // Reports
+  {
+    path: "/reports",
+    component: Reports,
+    isPrivate: true
+  }
+];
 
 const MainRouter = () => {
-    return (
-        <Routes>
-            <Route
-                path="/login"
-                element={
-                    <PublicRouter>
-                        <LoginScreen />
-                    </PublicRouter>
-                }
-            />
-            <Route
-                path="/"
-                element={
-                    <PrivateRouter>
-                        <Dashboard />
-                    </PrivateRouter>
-                }
-            />
-            <Route
-                path="/main/customers"
-                element={
-                    <PrivateRouter>
-                        <Customers />
-                    </PrivateRouter>
-                }
-            />
-            <Route
-                path="/main/suppliers"
-                element={
-                    <PrivateRouter>
-                        <Suppliers />
-                    </PrivateRouter>
-                }
-            />
-            <Route
-                path="/main/products"
-                element={
-                    <PrivateRouter>
-                        <Products />
-                    </PrivateRouter>
-                }
-            />
-            <Route
-                path="/transactions/sales-orders"
-                element={
-                    <PrivateRouter>
-                        <SalesOrders />
-                    </PrivateRouter>
-                }
-            />
-            <Route
-                path="/transactions/purchase-orders"
-                element={
-                    <PrivateRouter>
-                        <PurchaseOrders />
-                    </PrivateRouter>
-                }
-            />
-            <Route
-                path="/transactions/invoices"
-                element={
-                    <PrivateRouter>
-                        <Invoices />
-                    </PrivateRouter>
-                }
-            />
-            <Route
-                path="/transactions/payments"
-                element={
-                    <PrivateRouter>
-                        <Payments />
-                    </PrivateRouter>
-                }
-            />
-            <Route
-                path="/transactions/routes"
-                element={
-                    <PrivateRouter>
-                        <Roote />
-                    </PrivateRouter>
-                }
-            />
-            <Route
-                path="/transactions/route-visits"
-                element={
-                    <PrivateRouter>
-                        <RouteVisits />
-                    </PrivateRouter>
-                }
-            />
-            <Route
-                path="/transactions/route-live-tracker"
-                element={
-                    <PrivateRouter>
-                        <RouteLiveTracker />
-                    </PrivateRouter>
-                }
-            />
-            <Route
-                path="/audit/audit-logs"
-                element={
-                    <PrivateRouter>
-                        <AuditLogs />
-                    </PrivateRouter>
-                }
-            />
-            <Route
-                path="/reports"
-                element={
-                    <PrivateRouter>
-                        <Reports />
-                    </PrivateRouter>
-                }
-            />
-            <Route path="*" element={<NotFound />} />
-        </Routes>
-    );
+  return (
+    <Routes>
+      {routeConfig.map(({ path, component: Component, isPrivate }) => (
+        <Route
+          key={path}
+          path={path}
+          element={
+            isPrivate ? (
+              <PrivateRoute>
+                <Component />
+              </PrivateRoute>
+            ) : (
+              <PublicRoute>
+                <Component />
+              </PublicRoute>
+            )
+          }
+        />
+      ))}
+      
+      {/* 404 Route - Keep this at the end */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
 };
 
 export default MainRouter;
