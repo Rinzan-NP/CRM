@@ -1,10 +1,17 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    InvoiceViewSet, OutstandingPaymentsView, PaymentViewSet,
-    PurchaseOrderViewSet, RouteEfficiencyReportView, RouteVisitViewSet,
-    RouteViewSet, SalesOrderViewSet, SalesVsPurchaseReportView,
-    RouteLocationPingViewSet, VATReportView
+    InvoiceViewSet,
+    OutstandingPaymentsView,
+    PaymentViewSet,
+    PurchaseOrderViewSet,
+    RouteEfficiencyReportView,
+    RouteVisitViewSet,
+    RouteViewSet,
+    SalesOrderViewSet,
+    SalesVsPurchaseReportView,
+    RouteLocationPingViewSet,
+    VATReportView,
 )
 
 router = DefaultRouter()
@@ -16,9 +23,10 @@ router.register(r"routes", RouteViewSet)
 router.register(r"routevisits", RouteVisitViewSet)
 router.register(r"route-location-pings", RouteLocationPingViewSet)
 
-urlpatterns = [path("", include(router.urls)),
-               path("reports/sales-vs-purchase/", SalesVsPurchaseReportView.as_view()),
+urlpatterns = [
+    path("", include(router.urls)),
+    path("reports/sales-vs-purchase/", SalesVsPurchaseReportView.as_view()),
     path("reports/route-efficiency/", RouteEfficiencyReportView.as_view()),
     path("reports/outstanding-payments/", OutstandingPaymentsView.as_view()),
     path("vat-report/", VATReportView.as_view()),
-    ]
+]

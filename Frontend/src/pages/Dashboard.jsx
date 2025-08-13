@@ -96,17 +96,17 @@ const Dashboard = () => {
       ),
       color: "bg-orange-500"
     },
-    { 
-      title: "Live Route Tracker", 
-      description: "Send live GPS pings",
-      path: "/transactions/route-live-tracker",
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A2 2 0 0122 9.528v4.944a2 2 0 01-2.447 1.804L15 14m0-4v4m0-4L9 7m6 3L9 17m0 0l-4.553 2.276A2 2 0 012 17.472V12.528a2 2 0 011.447-1.804L9 7" />
-        </svg>
-      ),
-      color: "bg-teal-500"
-    },
+    // { 
+    //   title: "Live Route Tracker", 
+    //   description: "Send live GPS pings",
+    //   path: "/transactions/route-live-tracker",
+    //   icon: (
+    //     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    //       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A2 2 0 0122 9.528v4.944a2 2 0 01-2.447 1.804L15 14m0-4v4m0-4L9 7m6 3L9 17m0 0l-4.553 2.276A2 2 0 012 17.472V12.528a2 2 0 011.447-1.804L9 7" />
+    //     </svg>
+    //   ),
+    //   color: "bg-teal-500"
+    // },
     { 
       title: "Route Visits", 
       description: "Track and manage route visits",

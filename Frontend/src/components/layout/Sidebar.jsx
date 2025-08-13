@@ -24,7 +24,7 @@ const navItems = [
   { label: "Payments", to: "/transactions/payments", icon: FiDollarSign },
   { label: "Routes", to: "/transactions/routes", icon: FiMap },
   { label: "Route Visits", to: "/transactions/route-visits", icon: FiMapPin },
-  { label: "Live Tracker", to: "/transactions/route-live-tracker", icon: FiActivity },
+  // { label: "Live Tracker", to: "/transactions/route-live-tracker", icon: FiActivity },
   { label: "Audit Logs", to: "/audit/audit-logs", icon: FiFileText },
   { label: "Reports", to: "/reports", icon: FiBarChart2 },
 ];

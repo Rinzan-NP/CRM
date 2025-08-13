@@ -329,7 +329,3 @@ class OutstandingPaymentsView(APIView):
         
         return Response(list(customer_outstanding.values()))
 
-# # Add to transactions/urls.py:
-# """
-
-# """
