@@ -85,54 +85,112 @@ class PaymentSerializer(serializers.ModelSerializer):
 
 class InvoiceSerializer(serializers.ModelSerializer):
     payments = PaymentSerializer(many=True, read_only=True)
-
+    outstanding = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    
     class Meta:
         model = Invoice
         fields = [
             'id', 'sales_order', 'invoice_no', 'issue_date', 'due_date',
             'amount_due', 'paid_amount', 'outstanding', 'status', 'payments'
         ]
-        read_only_fields = ['amount_due', 'paid_amount', 'outstanding', 'status', 'invoice_no']
+        read_only_fields = ['paid_amount', 'status', 'invoice_no']
 
     def create(self, validated_data):
-        # Generate invoice number if not provided
-        if not validated_data.get('invoice_no'):
-            from datetime import datetime
-            timestamp = datetime.now().strftime('%Y%m%d')
-            validated_data['invoice_no'] = f"INV-{timestamp}"
-        
-        # Set amount_due from sales order
+        # Set amount_due from sales order if provided
         if validated_data.get('sales_order') and not validated_data.get('amount_due'):
             validated_data['amount_due'] = validated_data['sales_order'].grand_total
             
         return super().create(validated_data)
+
+    def to_representation(self, instance):
+        """Ensure outstanding is always calculated fresh"""
+        data = super().to_representation(instance)
+        data['outstanding'] = str(instance.outstanding)
+        return data
         
 
 class RouteVisitSerializer(serializers.ModelSerializer):
+    sales_orders_details = serializers.SerializerMethodField(read_only=True)
+    customer_name = serializers.SerializerMethodField(read_only=True)
+    route_name = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = RouteVisit
         fields = [
-            'id', 'route', 'customer', 'check_in', 'check_out', 'lat', 'lon', 'status'
+            'id', 'route', 'customer', 'check_in', 'check_out', 'lat', 'lon', 
+            'status', 'sales_orders', 'notes', 'sales_orders_details', 
+            'customer_name', 'route_name'
         ]
         read_only_fields = ['id']
+
+    def get_sales_orders_details(self, obj):
+        """Get detailed info about associated sales orders"""
+        return [
+            {
+                'id': so.id,
+                'order_number': so.order_number,
+                'order_date': so.order_date,
+                'grand_total': str(so.grand_total),
+                'status': so.status
+            }
+            for so in obj.sales_orders.all()
+        ]
+
+    def get_customer_name(self, obj):
+        return obj.customer.name if obj.customer else None
+
+    def get_route_name(self, obj):
+        return f"{obj.route.name} ({obj.route.date})" if obj.route else None
 
     def validate_customer(self, value):
         if not value:
             raise serializers.ValidationError("This field is required.")
         return value
 
+    def validate_sales_orders(self, value):
+        """Validate that all sales orders belong to the same customer as the visit"""
+        if value and hasattr(self, 'initial_data'):
+            customer_id = self.initial_data.get('customer')
+            if customer_id:
+                for sales_order in value:
+                    if str(sales_order.customer.id) != str(customer_id):
+                        raise serializers.ValidationError(
+                            f"Sales order {sales_order.order_number} belongs to a different customer."
+                        )
+        return value
+
+    def create(self, validated_data):
+        sales_orders = validated_data.pop('sales_orders', [])
+        route_visit = RouteVisit.objects.create(**validated_data)
+        if sales_orders:
+            route_visit.sales_orders.set(sales_orders)
+        return route_visit
+
+    def update(self, instance, validated_data):
+        sales_orders = validated_data.pop('sales_orders', None)
+        
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        if sales_orders is not None:
+            instance.sales_orders.set(sales_orders)
+        
+        return instance
+
 
 class RouteSerializer(serializers.ModelSerializer):
     visits = RouteVisitSerializer(many=True, read_only=True)
+    salesperson_name = serializers.CharField(source='salesperson.email', read_only=True)
 
     class Meta:
         model = Route
         fields = [
             'id', 'route_number', 'salesperson', 'name', 'date',
-            'start_time', 'end_time', 'visits'
+            'start_time', 'end_time', 'visits', 'salesperson_name'
         ]
-        read_only_fields = ['id', 'route_number', 'salesperson']
-        
+        read_only_fields = ['id', 'route_number', 'salesperson', 'salesperson_name']
+
     def create(self, validated_data):
         validated_data['salesperson'] = self.context['request'].user
         return super().create(validated_data)

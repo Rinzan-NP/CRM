@@ -136,8 +136,10 @@ const Routes = () => {
   };
 
   const getSalespersonName = (route) => {
+    console.log(route);
+    
     if (!route.salesperson) return 'N/A';
-    return route.salesperson.email || route.salesperson.name || 'Unknown';
+    return route.salesperson_name || 'Unknown';
   };
 
   const filteredRoutes = routes.filter(route => {

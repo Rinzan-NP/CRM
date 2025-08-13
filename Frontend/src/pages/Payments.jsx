@@ -51,10 +51,17 @@ const Payments = () => {
     if (formData.invoice && invoices.length > 0) {
       const selectedInvoice = invoices.find((invoice) => invoice.id === formData.invoice);
       if (selectedInvoice) {
-        const outstandingAmount = parseFloat(selectedInvoice.outstanding || selectedInvoice.amount_due);
+        // Use outstanding if available, otherwise calculate from amount_due - paid_amount
+        let outstandingAmount = 0;
+        if (selectedInvoice.outstanding !== undefined) {
+          outstandingAmount = parseFloat(selectedInvoice.outstanding);
+        } else {
+          outstandingAmount = parseFloat(selectedInvoice.amount_due || 0) - parseFloat(selectedInvoice.paid_amount || 0);
+        }
+        
         setFormData(prev => ({
           ...prev,
-          amount: outstandingAmount > 0 ? outstandingAmount.toString() : ''
+          amount: outstandingAmount > 0 ? outstandingAmount.toFixed(2) : ''
         }));
       }
     }
@@ -103,6 +110,9 @@ const Payments = () => {
         await dispatch(createPayment(paymentData)).unwrap();
         setToastMessage('Payment created successfully');
       }
+      
+      // Refresh invoices to get updated outstanding amounts
+      dispatch(fetchInvoices());
       
       setToastType('success');
       setShowToast(true);
@@ -159,13 +169,20 @@ const Payments = () => {
     return customer.name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim() || 'N/A';
   };
 
-  const getInvoiceDisplayName = (invoice) => {
-    return `${invoice.invoice_no || `Invoice ${invoice.id}`} - ${getCustomerName(invoice)}`;
-  };
-
   const formatCurrency = (value) => {
     const num = parseFloat(value);
     return isNaN(num) ? '0.00' : num.toFixed(2);
+  };
+
+  const getInvoiceDisplayName = (invoice) => {
+    let outstanding = 0;
+    if (invoice.outstanding !== undefined) {
+      outstanding = parseFloat(invoice.outstanding);
+    } else {
+      outstanding = parseFloat(invoice.amount_due || 0) - parseFloat(invoice.paid_amount || 0);
+    }
+    
+    return `${invoice.invoice_no || `Invoice ${invoice.id}`} - ${getCustomerName(invoice)} - Outstanding: $${outstanding.toFixed(2)}`;
   };
 
   const formatDate = (dateString) => {
@@ -196,7 +213,7 @@ const Payments = () => {
 
   // Filter invoices that have outstanding amounts
   const availableInvoices = invoices.filter(invoice => {
-    const outstanding = parseFloat(invoice.outstanding || invoice.amount_due);
+    const outstanding = parseFloat(invoice.outstanding || (parseFloat(invoice.amount_due || 0) - parseFloat(invoice.paid_amount || 0)));
     return outstanding > 0;
   });
 
@@ -357,7 +374,7 @@ const Payments = () => {
                 ) : availableInvoices.length > 0 ? (
                   availableInvoices.map((invoice) => (
                     <option key={invoice.id} value={invoice.id}>
-                      {getInvoiceDisplayName(invoice)} - Outstanding: ${formatCurrency(invoice.outstanding || invoice.amount_due)}
+                      {getInvoiceDisplayName(invoice)}
                     </option>
                   ))
                 ) : (

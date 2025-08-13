@@ -1,3 +1,5 @@
+// Updated RouteVisits.jsx with Sales Orders support
+
 import React, { useEffect, useState, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import {
@@ -8,6 +10,7 @@ import {
 } from "../redux/routeVisitsSlice";
 import { fetchRoutes } from "../redux/routesSlice";
 import { fetchCustomers } from "../redux/customersSlice";
+import { fetchSalesOrders } from "../redux/salesOrdersSlice";
 import {
   MapContainer,
   TileLayer,
@@ -25,7 +28,7 @@ import StatsCard from '../components/ui/StatsCard';
 import DataTable from '../components/ui/DataTable';
 import FormField from '../components/ui/FormField';
 import Modal from '../components/Common/Modal';
-import { MapPin, Clock, CheckCircle, XCircle, Plus, Edit, Trash2 } from 'lucide-react';
+import { MapPin, Clock, CheckCircle, XCircle, Plus, Edit, Trash2, ShoppingCart, FileText } from 'lucide-react';
 
 // Fix for default marker icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -34,6 +37,114 @@ L.Icon.Default.mergeOptions({
   iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
+
+// Multi-select component for sales orders
+const SalesOrderMultiSelect = ({ 
+  selectedCustomer, 
+  selectedSalesOrders, 
+  onSalesOrdersChange, 
+  salesOrders, 
+  loading 
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Filter sales orders by selected customer
+  const availableSalesOrders = salesOrders.filter(so => 
+  selectedCustomer && 
+  Number(so.customer) === Number(selectedCustomer) && 
+  so.status !== 'cancelled'
+);
+
+  
+
+  const handleToggle = (salesOrderId) => {
+    const newSelection = selectedSalesOrders.includes(salesOrderId)
+      ? selectedSalesOrders.filter(id => id !== salesOrderId)
+      : [...selectedSalesOrders, salesOrderId];
+    onSalesOrdersChange(newSelection);
+  };
+
+  const getSelectedOrdersDisplay = () => {
+  if (!selectedSalesOrders || selectedSalesOrders.length === 0) return "Select Sales Orders";
+  
+  const selectedCount = selectedSalesOrders.length;
+  if (selectedCount === 1) {
+    const order = salesOrders.find(so => so.id === selectedSalesOrders[0]);
+    return order ? order.order_number || `SO-${order.id}` : "1 order selected";
+  }
+  return `${selectedCount} orders selected`;
+};
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={!selectedCustomer || loading}
+        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-left flex justify-between items-center disabled:bg-slate-100 disabled:cursor-not-allowed"
+      >
+        <span className={selectedSalesOrders.length === 0 ? "text-slate-500" : "text-slate-900"}>
+          {getSelectedOrdersDisplay()}
+        </span>
+        <svg
+          className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+  <div className="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+    {!selectedCustomer ? (
+      <div className="px-3 py-2 text-slate-500 text-sm">
+        Please select a customer first
+      </div>
+    ) : availableSalesOrders.length === 0 ? (
+      <div className="px-3 py-2 text-slate-500 text-sm">
+        No sales orders found for this customer
+      </div>
+    ) : (
+      availableSalesOrders.map((salesOrder) => (
+        <label
+          key={salesOrder.id}
+          className="flex items-center px-3 py-2 hover:bg-slate-50 cursor-pointer"
+        >
+          <input
+            type="checkbox"
+            checked={selectedSalesOrders.includes(salesOrder.id)}
+            onChange={() => handleToggle(salesOrder.id)}
+            className="mr-3 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-slate-900">
+              {salesOrder.order_number || `SO-${salesOrder.id}`}
+            </div>
+            <div className="text-xs text-slate-500">
+              {salesOrder.order_date} • ${parseFloat(salesOrder.grand_total || 0).toFixed(2)} • {salesOrder.status}
+            </div>
+          </div>
+        </label>
+      ))
+    )}
+  </div>
+)}
+    </div>
+  );
+};
 
 const LocationPicker = ({ onLocationSelect, position }) => {
   const map = useMapEvents({
@@ -75,6 +186,8 @@ const SearchBar = ({ onSearch }) => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  
 
   const handleInputChange = async (e) => {
     const value = e.target.value;
@@ -154,7 +267,9 @@ const RouteVisits = () => {
   );
   const { routes, loading: loadingRoutes } = useSelector((state) => state.routes);
   const { customers, loading: loadingCustomers } = useSelector((state) => state.customers);
+  const { salesOrders, loading: loadingSalesOrders } = useSelector((state) => state.salesOrders);
   const dispatch = useDispatch();
+  
   const [routeVisit, setRouteVisit] = useState({
     route: "",
     customer: "",
@@ -163,6 +278,8 @@ const RouteVisits = () => {
     lat: "",
     lon: "",
     status: "planned",
+    sales_orders: [],
+    notes: "",
   });
   const [editMode, setEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -174,6 +291,7 @@ const RouteVisits = () => {
     dispatch(fetchRouteVisits());
     dispatch(fetchRoutes());
     dispatch(fetchCustomers());
+    dispatch(fetchSalesOrders());
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -188,6 +306,22 @@ const RouteVisits = () => {
       );
     }
   }, [dispatch]);
+
+  useEffect(() => {
+  if (routeVisit.customer) {
+    const customerId = Number(routeVisit.customer);
+    const validSalesOrders = salesOrders
+      .filter(so => Number(so.customer) === customerId && so.status !== 'cancelled')
+      .map(so => so.id);
+    
+    setRouteVisit(prev => ({ 
+      ...prev, 
+      sales_orders: validSalesOrders 
+    }));
+  } else {
+    setRouteVisit(prev => ({ ...prev, sales_orders: [] }));
+  }
+}, [routeVisit.customer, salesOrders]);
 
   const formatCoordinate = (value) => {
     if (value === null || value === undefined || value === "") return "";
@@ -213,6 +347,10 @@ const RouteVisits = () => {
     } else {
       setRouteVisit({ ...routeVisit, [name]: value });
     }
+  };
+
+  const handleSalesOrdersChange = (selectedSalesOrders) => {
+    setRouteVisit({ ...routeVisit, sales_orders: selectedSalesOrders });
   };
 
   const handleLocationSelect = (latlng) => {
@@ -271,7 +409,9 @@ const RouteVisits = () => {
   };
 
   const handleDeleteRouteVisit = async (id) => {
-    await dispatch(deleteRouteVisit(id));
+    if (window.confirm('Are you sure you want to delete this route visit?')) {
+      await dispatch(deleteRouteVisit(id));
+    }
   };
 
   const handleEditRouteVisit = (routeVisit) => {
@@ -281,6 +421,8 @@ const RouteVisits = () => {
       ...routeVisit,
       lat: formatCoordinate(routeVisit.lat),
       lon: formatCoordinate(routeVisit.lon),
+      sales_orders: routeVisit.sales_orders || [],
+      notes: routeVisit.notes || "",
     });
     setShowModal(true);
 
@@ -303,6 +445,8 @@ const RouteVisits = () => {
       lat: "",
       lon: "",
       status: "planned",
+      sales_orders: [],
+      notes: "",
     });
     setSelectedPosition(null);
     setEditMode(false);
@@ -325,6 +469,21 @@ const RouteVisits = () => {
     return customer ? customer.name : `Customer ${customerId}`;
   };
 
+  const getSalesOrdersDisplay = (salesOrderIds) => {
+    if (!salesOrderIds || salesOrderIds.length === 0) return 'None';
+    
+    const orders = salesOrderIds.map(id => {
+      const so = salesOrders.find(s => s.id === id);
+      return so ? (so.order_number || `SO-${so.id}`) : `SO-${id}`;
+    });
+    
+    if (orders.length <= 2) {
+      return orders.join(', ');
+    }
+    
+    return `${orders.slice(0, 2).join(', ')} +${orders.length - 2} more`;
+  };
+
   const plannedVisits = routeVisits.filter(v => v.status === 'planned').length;
   const visitedVisits = routeVisits.filter(v => v.status === 'visited').length;
   const missedVisits = routeVisits.filter(v => v.status === 'missed').length;
@@ -341,6 +500,18 @@ const RouteVisits = () => {
       header: 'Customer',
       accessor: 'customer',
       cell: (row) => getCustomerName(row.customer),
+    },
+    {
+      header: 'Sales Orders',
+      accessor: 'sales_orders',
+      cell: (row) => (
+        <div className="flex items-center gap-1">
+          <ShoppingCart className="h-4 w-4 text-slate-400" />
+          <span className="text-sm text-slate-600">
+            {getSalesOrdersDisplay(row.sales_orders)}
+          </span>
+        </div>
+      ),
     },
     {
       header: 'Check-In',
@@ -410,7 +581,7 @@ const RouteVisits = () => {
       <div className="max-w-7xl mx-auto space-y-6">
         <PageHeader 
           title="Route Visits" 
-          subtitle="Manage and track your field visits"
+          subtitle="Manage and track your field visits with sales orders"
           actions={[
             <button
               key="add"
@@ -429,13 +600,11 @@ const RouteVisits = () => {
           <StatsCard title="Missed Visits" value={missedVisits} icon={XCircle} color="rose" />
         </div>
 
-        
-
         <Modal 
           isOpen={showModal} 
           onClose={() => setShowModal(false)}
           title={editMode ? 'Edit Route Visit' : 'Create New Route Visit'}
-          size="lg"
+          size="xl"
         >
           <form onSubmit={editMode ? handleUpdateRouteVisit : handleCreateRouteVisit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -481,6 +650,19 @@ const RouteVisits = () => {
                 </select>
               </FormField>
 
+              <FormField label="Sales Orders" className="md:col-span-2">
+                <SalesOrderMultiSelect
+                  selectedCustomer={routeVisit.customer}
+                  selectedSalesOrders={routeVisit.sales_orders}
+                  onSalesOrdersChange={handleSalesOrdersChange}
+                  salesOrders={salesOrders}
+                  loading={loadingSalesOrders}
+                />
+                <div className="text-xs text-slate-500 mt-1">
+                  Optional: Select sales orders to associate with this visit
+                </div>
+              </FormField>
+
               <FormField label="Check-In">
                 <input
                   type="datetime-local"
@@ -515,7 +697,18 @@ const RouteVisits = () => {
                 </select>
               </FormField>
 
-              <div className="space-y-2">
+              <FormField label="Notes">
+                <textarea
+                  name="notes"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={routeVisit.notes}
+                  onChange={handleInputChange}
+                  placeholder="Optional visit notes..."
+                />
+              </FormField>
+
+              <div className="space-y-2 md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700">Location</label>
                 <div className="h-48 relative rounded-lg overflow-hidden border border-slate-300">
                   <MapContainer

@@ -155,6 +155,7 @@ class RouteViewSet(viewsets.ModelViewSet):
         serializer = RouteVisitSerializer(visits, many=True)
         return Response(serializer.data)
 
+
 class RouteVisitViewSet(viewsets.ModelViewSet):
     queryset = RouteVisit.objects.all()
     serializer_class = RouteVisitSerializer
@@ -164,9 +165,186 @@ class RouteVisitViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         user = self.request.user
         role = getattr(user, 'role', '')
+        
+        # Filter by salesperson role
         if role == 'salesperson':
-            return qs.filter(route__salesperson=user)
-        return qs
+            qs = qs.filter(route__salesperson=user)
+        
+        # Apply additional filters from query parameters
+        route_id = self.request.query_params.get('route')
+        customer_id = self.request.query_params.get('customer')
+        status = self.request.query_params.get('status')
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        
+        if route_id:
+            qs = qs.filter(route_id=route_id)
+        
+        if customer_id:
+            qs = qs.filter(customer_id=customer_id)
+        
+        if status:
+            qs = qs.filter(status=status)
+        
+        if date_from:
+            qs = qs.filter(route__date__gte=date_from)
+        
+        if date_to:
+            qs = qs.filter(route__date__lte=date_to)
+        
+        return qs.select_related('route', 'customer').prefetch_related('sales_orders')
+
+    @action(detail=True, methods=['post'])
+    def check_in(self, request, pk=None):
+        """Check in to a route visit"""
+        route_visit = self.get_object()
+        
+        # Validate that the current user is the salesperson for this route
+        if hasattr(request.user, 'role') and request.user.role == 'salesperson':
+            if route_visit.route.salesperson != request.user:
+                return Response(
+                    {'detail': 'You can only check in to your own route visits'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        from django.utils import timezone
+        
+        # Get location data from request
+        lat = request.data.get('lat')
+        lon = request.data.get('lon')
+        
+        # Update check-in information
+        route_visit.check_in = timezone.now()
+        route_visit.status = 'visited'
+        
+        if lat and lon:
+            route_visit.lat = lat
+            route_visit.lon = lon
+        
+        route_visit.save()
+        
+        serializer = self.get_serializer(route_visit)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def check_out(self, request, pk=None):
+        """Check out from a route visit"""
+        route_visit = self.get_object()
+        
+        # Validate that the current user is the salesperson for this route
+        if hasattr(request.user, 'role') and request.user.role == 'salesperson':
+            if route_visit.route.salesperson != request.user:
+                return Response(
+                    {'detail': 'You can only check out from your own route visits'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        from django.utils import timezone
+        
+        # Update check-out information
+        route_visit.check_out = timezone.now()
+        
+        # Add notes if provided
+        notes = request.data.get('notes')
+        if notes:
+            if route_visit.notes:
+                route_visit.notes += f"\n\n{notes}"
+            else:
+                route_visit.notes = notes
+        
+        route_visit.save()
+        
+        serializer = self.get_serializer(route_visit)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def add_sales_order(self, request, pk=None):
+        """Add a sales order to a route visit"""
+        route_visit = self.get_object()
+        sales_order_id = request.data.get('sales_order_id')
+        
+        if not sales_order_id:
+            return Response(
+                {'detail': 'sales_order_id is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            sales_order = SalesOrder.objects.get(id=sales_order_id)
+            
+            # Validate that the sales order belongs to the same customer
+            if sales_order.customer != route_visit.customer:
+                return Response(
+                    {'detail': 'Sales order must belong to the same customer as the route visit'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            route_visit.sales_orders.add(sales_order)
+            
+            serializer = self.get_serializer(route_visit)
+            return Response(serializer.data)
+            
+        except SalesOrder.DoesNotExist:
+            return Response(
+                {'detail': 'Sales order not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    @action(detail=True, methods=['delete'])
+    def remove_sales_order(self, request, pk=None):
+        """Remove a sales order from a route visit"""
+        route_visit = self.get_object()
+        sales_order_id = request.query_params.get('sales_order_id')
+        
+        if not sales_order_id:
+            return Response(
+                {'detail': 'sales_order_id is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            sales_order = SalesOrder.objects.get(id=sales_order_id)
+            route_visit.sales_orders.remove(sales_order)
+            
+            serializer = self.get_serializer(route_visit)
+            return Response(serializer.data)
+            
+        except SalesOrder.DoesNotExist:
+            return Response(
+                {'detail': 'Sales order not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    @action(detail=False, methods=['get'])
+    def by_date_range(self, request):
+        """Get route visits within a date range"""
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        if not start_date or not end_date:
+            return Response(
+                {'detail': 'start_date and end_date are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            from datetime import datetime
+            start = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end = datetime.strptime(end_date, '%Y-%m-%d').date()
+            
+            queryset = self.get_queryset().filter(
+                route__date__gte=start,
+                route__date__lte=end
+            )
+            
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
+            
+        except ValueError:
+            return Response(
+                {'detail': 'Invalid date format. Use YYYY-MM-DD'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
 
 class RouteLocationPingViewSet(viewsets.ModelViewSet):
@@ -308,24 +486,30 @@ class OutstandingPaymentsView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        # Get invoices with outstanding amounts
-        outstanding_invoices = Invoice.objects.filter(
-            status__in=['sent', 'overdue']
-        ).select_related('sales_order__customer')
+        # Get all invoices that have outstanding amounts
+        invoices = Invoice.objects.select_related('sales_order__customer').all()
         
         customer_outstanding = {}
-        for invoice in outstanding_invoices:
-            customer = invoice.sales_order.customer
-            if customer.id not in customer_outstanding:
-                customer_outstanding[customer.id] = {
-                    "customer_name": customer.name,
-                    "customer_email": customer.email,
-                    "total_outstanding": 0,
-                    "invoice_count": 0
-                }
-            
-            customer_outstanding[customer.id]["total_outstanding"] += invoice.outstanding
-            customer_outstanding[customer.id]["invoice_count"] += 1
+        for invoice in invoices:
+            outstanding = invoice.outstanding
+            if outstanding > 0:  # Only include invoices with outstanding amounts
+                customer = invoice.sales_order.customer
+                if customer.id not in customer_outstanding:
+                    customer_outstanding[customer.id] = {
+                        "customer_name": customer.name,
+                        "customer_email": customer.email,
+                        "total_outstanding": 0,
+                        "invoice_count": 0
+                    }
+                
+                customer_outstanding[customer.id]["total_outstanding"] += float(outstanding)
+                customer_outstanding[customer.id]["invoice_count"] += 1
         
-        return Response(list(customer_outstanding.values()))
+        # Format the amounts properly
+        result = []
+        for customer_data in customer_outstanding.values():
+            customer_data["total_outstanding"] = round(customer_data["total_outstanding"], 2)
+            result.append(customer_data)
+        
+        return Response(result)
 

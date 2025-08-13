@@ -227,13 +227,23 @@ class Invoice(BaseModel):
 
     @property
     def outstanding(self):
-        return max(Decimal(self.amount_due) - Decimal(self.paid_amount), 0)
+        """Calculate outstanding amount"""
+        return max(self.amount_due - self.paid_amount, Decimal('0.00'))
 
-    def mark_paid(self, amount):
-        self.paid_amount += amount
+    def update_payment_status(self):
+        """Update paid_amount and status based on all payments"""
+        total_paid = self.payments.aggregate(
+            total=models.Sum('amount')
+        )['total'] or Decimal('0.00')
+        
+        self.paid_amount = total_paid
+        
         if self.paid_amount >= self.amount_due:
             self.status = "paid"
-        self.save(update_fields=["paid_amount", "status"])
+        elif self.paid_amount > 0:
+            self.status = "sent"  # Partially paid
+        
+        self.save(update_fields=['paid_amount', 'status'])
         
     def save(self, *args, **kwargs):
         from datetime import datetime
@@ -260,8 +270,17 @@ class Payment(BaseModel):
     mode    = models.CharField(max_length=30, choices=[("cash", "Cash"), ("bank", "Bank")])
 
     def save(self, *args, **kwargs):
+        is_new = self.pk is None
         super().save(*args, **kwargs)
-        self.invoice.mark_paid(self.amount)
+        # Only update invoice status after saving the payment
+        if is_new:  # Only for new payments, not updates
+            self.invoice.update_payment_status()
+    
+    def delete(self, *args, **kwargs):
+        invoice = self.invoice
+        super().delete(*args, **kwargs)
+        # Update invoice status after deleting payment
+        invoice.update_payment_status()
         
         
 class Route(BaseModel):
@@ -307,7 +326,9 @@ class RouteVisit(BaseModel):
     check_out = models.DateTimeField(null=True, blank=True)
     lat       = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     lon       = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    sales_orders = models.ManyToManyField('SalesOrder', blank=True, related_name='route_visits')
     status    = models.CharField(max_length=10, choices=STATUS_CHOICES, default="planned")
+    notes     = models.TextField(blank=True)
 
 
 class RouteLocationPing(BaseModel):

@@ -19,7 +19,7 @@ export default function LoginPage() {
     
     try {
       await dispatch(login({ email, password })).unwrap();
-      navigate('/dashboard');
+      navigate('/');
     } catch (error) {
       setError(error.message || 'Login failed. Please check your credentials.');
       console.error('Login failed', error);
