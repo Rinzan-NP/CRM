@@ -96,6 +96,7 @@ const Customers = () => {
     setIsEditing(false);
     setCurrentCustomerId(null);
   };
+
   const customersList = customers || [];
 
   const filteredCustomers = customersList.filter(customer => 
@@ -115,6 +116,7 @@ const Customers = () => {
           title="Customers"
           subtitle="Manage your customer relationships"
           actions={[
+
             <SearchInput
               key="search"
               placeholder="Search customers..."
@@ -191,6 +193,7 @@ const Customers = () => {
             message={toastMessage} 
             onClose={() => setShowToast(false)} 
             type={error ? 'error' : 'success'}
+            autoClose={5000} // Automatically close after 5 seconds
           />
         )}
       </div>

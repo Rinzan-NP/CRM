@@ -1,16 +1,19 @@
 from rest_framework import viewsets
 from rest_framework.views import APIView
+from rest_framework import generics
 from rest_framework import status
 from django.db.models import Sum, Count, Avg
 from django.utils.dateparse import parse_date
 from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework.decorators import action
 from rest_framework.response import Response
+
+from main.models import Customer
 from .models import Invoice, Payment, PurchaseOrder, Route, RouteVisit, SalesOrder, RouteLocationPing
 from .serializers import (
     InvoiceSerializer, PaymentSerializer, PurchaseOrderSerializer,
     RouteSerializer, RouteVisitSerializer, SalesOrderSerializer,
-    RouteLocationPingSerializer
+    RouteLocationPingSerializer, CustomerSerializer
 )
 
 class SalesOrderViewSet(viewsets.ModelViewSet):
@@ -512,4 +515,119 @@ class OutstandingPaymentsView(APIView):
             result.append(customer_data)
         
         return Response(result)
+    
+class CustomerViewSet(viewsets.ModelViewSet):
+    """Customer ViewSet with proper CRUD operations"""
+    queryset = Customer.objects.all()
+    serializer_class = CustomerSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        
+        # If salesperson, only show customers they've interacted with
+        if role == 'salesperson':
+            qs = qs.filter(sales_orders__salesperson=user).distinct()
+        
+        return qs
+
+# Update the existing CustomerDetailView
+class CustomerDetailView(generics.RetrieveAPIView):
+    queryset = Customer.objects.all()
+    serializer_class = CustomerSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+# Update CustomerSalesOrdersView
+class CustomerSalesOrdersView(generics.ListAPIView):
+    serializer_class = SalesOrderSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        customer_id = self.kwargs['customer_id']
+        qs = SalesOrder.objects.filter(customer_id=customer_id)
+        
+        # Apply role-based filtering
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        if role == 'salesperson':
+            qs = qs.filter(salesperson=user)
+            
+        return qs.select_related('customer').prefetch_related('line_items__product')
+
+# Update CustomerInvoicesView
+class CustomerInvoicesView(generics.ListAPIView):
+    serializer_class = InvoiceSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        customer_id = self.kwargs['customer_id']
+        qs = Invoice.objects.filter(sales_order__customer_id=customer_id)
+        
+        # Apply role-based filtering
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        if role == 'salesperson':
+            qs = qs.filter(sales_order__salesperson=user)
+            
+        return qs.select_related('sales_order__customer').prefetch_related('payments')
+
+# Add a comprehensive customer summary view
+class CustomerSummaryView(APIView):
+    """Get comprehensive customer data in one call"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, customer_id):
+        try:
+            customer = Customer.objects.get(id=customer_id)
+            
+            # Get sales orders
+            sales_orders = SalesOrder.objects.filter(customer=customer)
+            
+            # Get invoices
+            invoices = Invoice.objects.filter(sales_order__customer=customer)
+            
+            # Apply role-based filtering
+            user = request.user
+            role = getattr(user, 'role', '')
+            if role == 'salesperson':
+                sales_orders = sales_orders.filter(salesperson=user)
+                invoices = invoices.filter(sales_order__salesperson=user)
+            
+            # Serialize data
+            customer_data = CustomerSerializer(customer).data
+            orders_data = SalesOrderSerializer(sales_orders, many=True).data
+            invoices_data = InvoiceSerializer(invoices, many=True).data
+            
+            # Calculate summary statistics
+            total_orders = sales_orders.count()
+            pending_orders = sales_orders.filter(status='confirmed').count()
+            total_spent = sales_orders.aggregate(total=Sum('grand_total'))['total'] or 0
+            outstanding_balance = sum(float(inv.outstanding) for inv in invoices)
+            
+            return Response({
+                'customer': customer_data,
+                'orders': orders_data,
+                'invoices': invoices_data,
+                'summary': {
+                    'total_orders': total_orders,
+                    'pending_orders': pending_orders,
+                    'total_spent': float(total_spent),
+                    'outstanding_balance': outstanding_balance,
+                    'paid_invoices': invoices.filter(status='paid').count(),
+                    'overdue_invoices': invoices.filter(status='overdue').count()
+                }
+            })
+            
+        except Customer.DoesNotExist:
+            return Response({'detail': 'Customer not found'}, status=404)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
 

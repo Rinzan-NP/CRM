@@ -19,6 +19,7 @@ const RouteVisits = lazy(() => import("../pages/RouteVisits"));
 const RouteLiveTracker = lazy(() => import("../pages/RouteLiveTracker"));
 const AuditLogs = lazy(() => import("../pages/AuditLogs")); // Fixed typo: AuditLoges -> AuditLogs
 const Reports = lazy(() => import("../pages/Reports"));
+const CustomerDetail = lazy(() => import("../pages/CustomerDetail")); // Added CustomerDetail page
 
 // Loading component for suspense fallback
 const LoadingSpinner = () => (
@@ -119,6 +120,11 @@ const routeConfig = [
   {
     path: "/audit/audit-logs",
     component: AuditLogs,
+    isPrivate: true
+  },
+  {
+    path:"/customers/:id",
+    component : CustomerDetail,
     isPrivate: true
   },
   

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Invoice, Payment, PurchaseOrder, PurchaseOrderLineItem, Route, RouteVisit, SalesOrder, OrderLineItem, RouteLocationPing
-from main.models import Product
+from main.models import Customer, Product
 from main.serializers import CustomerSerializer, ProductSerializer
 
 class OrderLineItemSerializer(serializers.ModelSerializer):
@@ -204,3 +204,24 @@ class RouteLocationPingSerializer(serializers.ModelSerializer):
             'speed_mps', 'heading_degrees', 'created_at'
         ]
         read_only_fields = ['id', 'created_at']
+        
+
+# serializers.py
+class CustomerSerializer(serializers.ModelSerializer):
+    order_count = serializers.SerializerMethodField()
+    total_spent = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Customer
+        fields = ['id', 'name', 'email', 'phone', 'address', 
+                 'credit_limit', 'current_balance', 'order_count', 'total_spent']
+
+    def get_order_count(self, obj):
+        
+        return obj.sales_orders.count()
+
+    def get_total_spent(self, obj):
+        from django.db.models import Sum
+        return obj.sales_orders.aggregate(
+            total=Sum('grand_total')
+        )['total'] or 0
