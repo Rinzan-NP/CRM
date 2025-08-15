@@ -335,10 +335,10 @@ class RouteLocationPing(BaseModel):
     """Live GPS pings during a route visit"""
     route = models.ForeignKey(Route, related_name="location_pings", on_delete=models.CASCADE)
     visit = models.ForeignKey(RouteVisit, related_name="location_pings", on_delete=models.SET_NULL, null=True, blank=True)
-    lat = models.DecimalField(max_digits=9, decimal_places=6)
-    lon = models.DecimalField(max_digits=9, decimal_places=6)
-    accuracy_meters = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
-    speed_mps = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    lat = models.DecimalField(max_digits=20, decimal_places=15)  # Increased to handle high-precision GPS coordinates
+    lon = models.DecimalField(max_digits=20, decimal_places=15)  # Increased to handle high-precision GPS coordinates
+    accuracy_meters = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)  # Increased precision for GPS accuracy
+    speed_mps = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)  # Increased precision for speed
     heading_degrees = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
 
     class Meta:

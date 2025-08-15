@@ -210,10 +210,10 @@ class RouteSerializer(serializers.ModelSerializer):
 
 class RouteLocationPingSerializer(serializers.ModelSerializer):
     route = serializers.UUIDField()
-    lat = serializers.DecimalField(max_digits=9, decimal_places=6)
-    lon = serializers.DecimalField(max_digits=9, decimal_places=6)
-    accuracy_meters = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
-    speed_mps = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
+    lat = serializers.DecimalField(max_digits=20, decimal_places=15)  # Updated to match model
+    lon = serializers.DecimalField(max_digits=20, decimal_places=15)  # Updated to match model
+    accuracy_meters = serializers.DecimalField(max_digits=10, decimal_places=6, required=False, allow_null=True)  # Updated to match model
+    speed_mps = serializers.DecimalField(max_digits=8, decimal_places=4, required=False, allow_null=True)  # Updated to match model
     heading_degrees = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
 
     class Meta:
@@ -247,6 +247,45 @@ class RouteLocationPingSerializer(serializers.ModelSerializer):
         """Validate longitude is within valid range"""
         if value < -180 or value > 180:
             raise serializers.ValidationError("Longitude must be between -180 and 180")
+        return value
+
+    def validate_accuracy_meters(self, value):
+        """Validate accuracy if provided"""
+        if value is not None:
+            try:
+                acc = float(value)
+                if acc < 0:
+                    raise serializers.ValidationError("Accuracy cannot be negative")
+                # Round to 6 decimal places to match model constraint
+                return round(acc, 6)
+            except (ValueError, TypeError):
+                raise serializers.ValidationError("Accuracy must be a valid number")
+        return value
+
+    def validate_speed_mps(self, value):
+        """Validate speed if provided"""
+        if value is not None:
+            try:
+                speed = float(value)
+                if speed < 0:
+                    raise serializers.ValidationError("Speed cannot be negative")
+                # Round to 4 decimal places to match model constraint
+                return round(speed, 4)
+            except (ValueError, TypeError):
+                raise serializers.ValidationError("Speed must be a valid number")
+        return value
+
+    def validate_heading_degrees(self, value):
+        """Validate heading if provided"""
+        if value is not None:
+            try:
+                heading = float(value)
+                if heading < 0 or heading > 360:
+                    raise serializers.ValidationError("Heading must be between 0 and 360 degrees")
+                # Round to 2 decimal places to match model constraint
+                return round(heading, 2)
+            except (ValueError, TypeError):
+                raise serializers.ValidationError("Heading must be a valid number")
         return value
 
     def validate(self, data):

@@ -4,6 +4,7 @@ from rest_framework import generics
 from rest_framework import status
 from django.db.models import Sum, Count, Avg
 from django.utils.dateparse import parse_date
+from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -210,8 +211,6 @@ class RouteVisitViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_403_FORBIDDEN
                 )
         
-        from django.utils import timezone
-        
         # Get location data from request
         lat = request.data.get('lat')
         lon = request.data.get('lon')
@@ -241,8 +240,6 @@ class RouteVisitViewSet(viewsets.ModelViewSet):
                     {'detail': 'You can only check out from your own route visits'}, 
                     status=status.HTTP_403_FORBIDDEN
                 )
-        
-        from django.utils import timezone
         
         # Update check-out information
         route_visit.check_out = timezone.now()
@@ -369,22 +366,35 @@ class RouteLocationPingViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """Override create to add debugging"""
-        print(f"Creating RouteLocationPing with data: {request.data}")
-        print(f"User: {request.user}, Role: {getattr(request.user, 'role', 'N/A')}")
-        print(f"Data types: route={type(request.data.get('route'))}, lat={type(request.data.get('lat'))}, lon={type(request.data.get('lon'))}")
-        
         try:
-            # Validate the data first
-            serializer = self.get_serializer(data=request.data)
-            if not serializer.is_valid():
-                print(f"Serializer validation errors: {serializer.errors}")
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            print(f"Creating RouteLocationPing with data: {request.data}")
+            print(f"User: {request.user}, Role: {getattr(request.user, 'role', 'N/A')}")
+            
+            # Check if route exists and user has permission
+            route_id = request.data.get('route')
+            if route_id:
+                try:
+                    route = Route.objects.get(id=route_id)
+                    print(f"Route found: {route.name}, Salesperson: {route.salesperson}")
+                    
+                    # Check permissions
+                    user = request.user
+                    role = getattr(user, 'role', '')
+                    if role == 'salesperson' and route.salesperson != user:
+                        print(f"Permission denied: {user} cannot access route {route_id}")
+                        return Response(
+                            {'detail': 'You can only send location for your own routes'}, 
+                            status=403
+                        )
+                except Route.DoesNotExist:
+                    print(f"Route not found: {route_id}")
+                    return Response({'detail': 'Route not found'}, status=404)
             
             return super().create(request, *args, **kwargs)
+            
         except Exception as e:
             print(f"Error creating RouteLocationPing: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"Request data: {request.data}")
             raise
 
     def perform_create(self, serializer):
@@ -396,6 +406,208 @@ class RouteLocationPingViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('You can only send location for your own routes')
         serializer.save()
+
+    @action(detail=False, methods=['post'])
+    def start_route_tracking(self, request):
+        """Start tracking a route"""
+        route_id = request.data.get('route_id')
+        if not route_id:
+            return Response({'detail': 'route_id is required'}, status=400)
+        
+        try:
+            route = Route.objects.get(id=route_id)
+            user = request.user
+            
+            # Check permissions
+            if user.role == 'salesperson' and route.salesperson != user:
+                return Response({'detail': 'You can only track your own routes'}, status=403)
+            
+            # Check if tracking is already active (within last 30 minutes)
+            active_pings = RouteLocationPing.objects.filter(
+                route=route,
+                created_at__date=timezone.now().date()
+            ).order_by('-created_at')
+            
+            if active_pings.exists():
+                last_ping = active_pings.first()
+                # If last ping was within 30 minutes, consider tracking active
+                if timezone.now() - last_ping.created_at < timezone.timedelta(minutes=30):
+                    return Response({
+                        'message': 'Route tracking already active - continuing existing session',
+                        'route_id': str(route.id),
+                        'route_name': route.name,
+                        'tracking_id': str(last_ping.id),
+                        'last_ping': last_ping.created_at,
+                        'status': 'active'
+                    }, status=200)  # Changed from 400 to 200
+            
+            return Response({
+                'message': 'Route tracking started',
+                'route_id': str(route.id),
+                'route_name': route.name,
+                'start_time': timezone.now(),
+                'status': 'started'
+            })
+            
+        except Route.DoesNotExist:
+            return Response({'detail': 'Route not found'}, status=404)
+
+    @action(detail=False, methods=['post'])
+    def stop_route_tracking(self, request):
+        """Stop tracking a route and calculate summary"""
+        route_id = request.data.get('route_id')
+        if not route_id:
+            return Response({'detail': 'route_id is required'}, status=400)
+        
+        try:
+            route = Route.objects.get(id=route_id)
+            user = request.user
+            
+            # Check permissions
+            if user.role == 'salesperson' and route.salesperson != user:
+                return Response({'detail': 'You can only track your own routes'}, status=403)
+            
+            # Get all pings for today
+            today_pings = RouteLocationPing.objects.filter(
+                route=route,
+                created_at__date=timezone.now().date()
+            ).order_by('created_at')
+            
+            if not today_pings.exists():
+                return Response({'detail': 'No tracking data found for today'}, status=400)
+            
+            # Calculate route summary
+            summary = self._calculate_route_summary(today_pings)
+            
+            return Response({
+                'message': 'Route tracking stopped',
+                'route_id': str(route.id),
+                'route_name': route.name,
+                'summary': summary
+            })
+            
+        except Route.DoesNotExist:
+            return Response({'detail': 'Route not found'}, status=404)
+
+    @action(detail=False, methods=['get'])
+    def route_summary(self, request):
+        """Get route summary and optimization metrics"""
+        route_id = request.query_params.get('route_id')
+        if not route_id:
+            return Response({'error': 'route_id is required'}, status=400)
+        
+        try:
+            # Get all pings for the route
+            pings = self.get_queryset().filter(route_id=route_id).order_by('created_at')
+            
+            if not pings.exists():
+                return Response({'error': 'No location data found for this route'}, status=404)
+            
+            # Calculate route summary
+            total_distance = 0
+            total_time = 0
+            speeds = []
+            
+            for i in range(1, len(pings)):
+                prev_ping = pings[i-1]
+                curr_ping = pings[i]
+                
+                # Calculate distance between consecutive pings
+                distance = self._calculate_distance(
+                    prev_ping.lat, prev_ping.lon,
+                    curr_ping.lat, curr_ping.lon
+                )
+                total_distance += distance
+                
+                # Calculate time difference
+                time_diff = (curr_ping.created_at - prev_ping.created_at).total_seconds() / 3600  # hours
+                total_time += time_diff
+                
+                # Calculate speed if available
+                if curr_ping.speed_mps:
+                    speeds.append(float(curr_ping.speed_mps) * 3.6)  # Convert to km/h
+            
+            # Calculate average speed
+            average_speed = sum(speeds) / len(speeds) if speeds else 0
+            
+            # Get route details for optimization
+            try:
+                route = Route.objects.get(id=route_id)
+                route_visits = route.visits.all()
+                
+                # Calculate optimal distance (straight line between planned visits)
+                optimal_distance = 0
+                if route_visits.count() > 1:
+                    visits_with_coords = [v for v in route_visits if v.lat and v.lon]
+                    for i in range(1, len(visits_with_coords)):
+                        optimal_distance += self._calculate_distance(
+                            visits_with_coords[i-1].lat, visits_with_coords[i-1].lon,
+                            visits_with_coords[i].lat, visits_with_coords[i].lon
+                        )
+                
+                # Calculate efficiency metrics
+                deviation = max(0, total_distance - optimal_distance) if optimal_distance > 0 else 0
+                efficiency_percentage = max(0, min(100, (optimal_distance / total_distance * 100) if total_distance > 0 else 100))
+                
+                # Estimate fuel consumption (assuming 8L/100km average)
+                fuel_consumption = (total_distance / 100) * 8
+                fuel_cost = fuel_consumption * 1.5  # Assuming $1.5/L
+                
+                # Determine time efficiency
+                if efficiency_percentage > 80:
+                    time_efficiency = 'High'
+                elif efficiency_percentage > 60:
+                    time_efficiency = 'Medium'
+                else:
+                    time_efficiency = 'Low'
+                
+                optimization_data = {
+                    'efficiency_percentage': round(efficiency_percentage, 1),
+                    'actual_distance_km': round(total_distance, 2),
+                    'optimal_distance_km': round(optimal_distance, 2),
+                    'deviation_km': round(deviation, 2),
+                    'fuel_consumption_liters': round(fuel_consumption, 1),
+                    'estimated_fuel_cost': round(fuel_cost, 2),
+                    'time_efficiency': time_efficiency
+                }
+                
+            except Route.DoesNotExist:
+                optimization_data = None
+            
+            summary = {
+                'total_distance_km': round(total_distance, 2),
+                'total_time_hours': round(total_time, 2),
+                'average_speed_kmh': round(average_speed, 1),
+                'ping_count': pings.count(),
+                'start_time': pings.first().created_at.isoformat(),
+                'end_time': pings.last().created_at.isoformat()
+            }
+            
+            return Response({
+                'summary': summary,
+                'optimization': optimization_data
+            })
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+    
+    def _calculate_distance(self, lat1, lon1, lat2, lon2):
+        """Calculate distance between two coordinates using Haversine formula"""
+        from math import radians, cos, sin, asin, sqrt
+        
+        # Convert to radians
+        lat1, lon1, lat2, lon2 = map(radians, [float(lat1), float(lon1), float(lat2), float(lon2)])
+        
+        # Haversine formula
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        c = 2 * asin(sqrt(a))
+        
+        # Radius of earth in kilometers
+        r = 6371
+        
+        return c * r
 
     @action(detail=False, methods=['post'])
     def test_ping(self, request):
