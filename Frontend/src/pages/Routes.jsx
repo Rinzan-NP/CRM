@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchRoutes, createRoute, updateRoute, deleteRoute } from '../redux/routesSlice';
+import { fetchSalesPersons } from '../redux/salesPersonSlice';
 import { FiPlus, FiEdit, FiTrash2, FiMapPin, FiCalendar, FiClock, FiUser } from 'react-icons/fi';
 import Modal from '../components/Common/Modal';
 import Loader from '../components/Common/Loader';
@@ -14,14 +15,19 @@ import { FiMap, FiMapPin as PinIcon, FiActivity as LiveIcon } from 'react-icons/
 
 const Routes = () => {
   const { routes, loading: loadingRoutes, error: routesError } = useSelector((state) => state.routes);
+  const { salesPersons = [], loading: loadingSalesPersons, error: salesPersonError } = useSelector((state) => state.salesPersons || {});
   const dispatch = useDispatch();
   const user = useSelector((state) => state.auth.user);
+  
+  // Check if user is admin
+  const isAdmin = user?.role === 'admin';
   
   const [formData, setFormData] = useState({
     name: '',
     date: new Date().toISOString().split('T')[0],
     start_time: '',
     end_time: '',
+    salesperson: '', // Add salesperson field
   });
   
   const [isEditing, setIsEditing] = useState(false);
@@ -34,7 +40,11 @@ const Routes = () => {
 
   useEffect(() => {
     dispatch(fetchRoutes());
-  }, [dispatch]);
+    // Fetch salesPersons only if user is admin
+    if (isAdmin) {
+      dispatch(fetchSalesPersons());
+    }
+  }, [dispatch, isAdmin]);
 
   useEffect(() => {
     if (routesError) {
@@ -43,6 +53,14 @@ const Routes = () => {
       setShowToast(true);
     }
   }, [routesError]);
+
+  useEffect(() => {
+    if (salesPersonError) {
+      setToastMessage(salesPersonError || 'Failed to load salespersons');
+      setToastType('error');
+      setShowToast(true);
+    }
+  }, [salesPersonError]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -67,12 +85,26 @@ const Routes = () => {
       return;
     }
 
+    // Validate salesperson selection for admin
+    if (isAdmin && !formData.salesperson) {
+      setToastMessage('Please select a salesperson');
+      setToastType('error');
+      setShowToast(true);
+      return;
+    }
+
     try {
+      const routeData = { ...formData };
+      // If not admin, remove salesperson field to let backend handle it
+      if (!isAdmin) {
+        delete routeData.salesperson;
+      }
+
       if (isEditing) {
-        await dispatch(updateRoute({ id: currentRouteId, ...formData })).unwrap();
+        await dispatch(updateRoute({ id: currentRouteId, ...routeData })).unwrap();
         setToastMessage('Route updated successfully');
       } else {
-        await dispatch(createRoute(formData)).unwrap();
+        await dispatch(createRoute(routeData)).unwrap();
         setToastMessage('Route created successfully');
       }
       
@@ -93,6 +125,7 @@ const Routes = () => {
       date: route.date,
       start_time: route.start_time || '',
       end_time: route.end_time || '',
+      salesperson: route.salesperson || '',
     });
     setIsEditing(true);
     setCurrentRouteId(route.id);
@@ -120,6 +153,7 @@ const Routes = () => {
       date: new Date().toISOString().split('T')[0],
       start_time: '',
       end_time: '',
+      salesperson: '',
     });
     setIsEditing(false);
     setCurrentRouteId(null);
@@ -140,6 +174,13 @@ const Routes = () => {
     
     if (!route.salesperson) return 'N/A';
     return route.salesperson_name || 'Unknown';
+  };
+
+  // Get salesperson name by ID for display
+  const getSalespersonNameById = (salespersonId) => {
+    if (!salespersonId || !salesPersons.length) return 'N/A';
+    const salesperson = salesPersons.find(sp => sp.id === parseInt(salespersonId));
+    return salesperson ? salesperson.email : 'Unknown';
   };
 
   const filteredRoutes = routes.filter(route => {
@@ -316,6 +357,32 @@ const Routes = () => {
               />
             </div>
 
+            {/* Salesperson Select - Only show for admin */}
+            {isAdmin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Salesperson *
+                </label>
+                <select
+                  name="salesperson"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={formData.salesperson}
+                  onChange={handleInputChange}
+                >
+                  <option value="">Select a salesperson...</option>
+                  {salesPersons.map((salesperson) => (
+                    <option key={salesperson.id} value={salesperson.id}>
+                      {salesperson.email}
+                    </option>
+                  ))}
+                </select>
+                {loadingSalesPersons && (
+                  <p className="text-sm text-gray-500 mt-1">Loading salespeople...</p>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Date *
@@ -371,7 +438,7 @@ const Routes = () => {
               </button>
               <button
                 type="submit"
-                disabled={loadingRoutes}
+                disabled={loadingRoutes || (isAdmin && loadingSalesPersons)}
                 className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loadingRoutes ? 'Processing...' : (isEditing ? 'Update Route' : 'Create Route')}

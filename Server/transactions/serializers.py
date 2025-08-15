@@ -192,7 +192,10 @@ class RouteSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'route_number', 'salesperson', 'salesperson_name']
 
     def create(self, validated_data):
-        validated_data['salesperson'] = self.context['request'].user
+    # Only set salesperson to request.user if the user is not an admin
+        if self.context['request'].user.role != 'admin':
+            validated_data['salesperson'] = self.context['request'].user
+        # If admin, keeip the salesperson from validated_data (from frontend selection)
         return super().create(validated_data)
 
 
