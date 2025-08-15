@@ -8,6 +8,7 @@ import PageHeader from '../components/layout/PageHeader';
 import Loader from '../components/Common/Loader';
 import Toast from '../components/Common/Toast';
 import RouteOptimizer from '../components/Dashboard/RouteOptimizer';
+import CustomerVisitLogger from '../components/Customers/CustomerVisitLogger';
 import 'leaflet/dist/leaflet.css';
 
 // Custom map icons
@@ -44,6 +45,7 @@ const RouteLiveTracker = () => {
   const [showPlannedRoute, setShowPlannedRoute] = useState(true);
   const [showActualRoute, setShowActualRoute] = useState(true);
   const [showRealTime, setShowRealTime] = useState(true);
+  const [currentLocation, setCurrentLocation] = useState(null);
   
   const watchIdRef = useRef(null);
   const mapRef = useRef(null);
@@ -135,6 +137,12 @@ const RouteLiveTracker = () => {
         speed_mps: position.coords.speed ? Math.round(position.coords.speed * 10000) / 10000 : null,
         heading_degrees: position.coords.heading ? Math.round(position.coords.heading * 100) / 100 : null,
       };
+      
+      // Update current location for visit logging
+      setCurrentLocation({
+        lat: position.coords.latitude,
+        lon: position.coords.longitude
+      });
       
       try {
         const response = await api.post('/transactions/route-location-pings/', payload);
@@ -539,6 +547,20 @@ const RouteLiveTracker = () => {
         {/* Advanced Route Optimization */}
         {selectedRouteId && (
           <RouteOptimizer selectedRouteId={selectedRouteId} />
+        )}
+
+        {/* Customer Visit Logging */}
+        {selectedRouteId && (
+          <CustomerVisitLogger
+            selectedRouteId={selectedRouteId}
+            onVisitLogged={(visitData) => {
+              // Refresh route data when a visit is logged
+              fetchRoutePings();
+              fetchRouteSummary();
+            }}
+            isTracking={isTracking}
+            currentLocation={currentLocation}
+          />
         )}
 
         {/* Status Messages */}

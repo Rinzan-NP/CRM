@@ -244,6 +244,11 @@ class RouteVisitViewSet(viewsets.ModelViewSet):
         # Update check-out information
         route_visit.check_out = timezone.now()
         
+        # Calculate visit duration if check-in exists
+        if route_visit.check_in and route_visit.check_out:
+            duration = route_visit.check_out - route_visit.check_in
+            route_visit.visit_duration_minutes = int(duration.total_seconds() / 60)
+        
         # Add notes if provided
         notes = request.data.get('notes')
         if notes:
@@ -251,6 +256,19 @@ class RouteVisitViewSet(viewsets.ModelViewSet):
                 route_visit.notes += f"\n\n{notes}"
             else:
                 route_visit.notes = notes
+        
+        # Handle payment information
+        payment_collected = request.data.get('payment_collected', False)
+        if payment_collected:
+            route_visit.payment_collected = True
+            payment_amount = request.data.get('payment_amount')
+            if payment_amount:
+                route_visit.payment_amount = payment_amount
+        
+        # Handle issues reported
+        issues_reported = request.data.get('issues_reported')
+        if issues_reported:
+            route_visit.issues_reported = issues_reported
         
         route_visit.save()
         

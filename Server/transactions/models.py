@@ -329,6 +329,11 @@ class RouteVisit(BaseModel):
     sales_orders = models.ManyToManyField('SalesOrder', blank=True, related_name='route_visits')
     status    = models.CharField(max_length=10, choices=STATUS_CHOICES, default="planned")
     notes     = models.TextField(blank=True)
+    # Enhanced visit logging fields
+    payment_collected = models.BooleanField(default=False)
+    payment_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    issues_reported = models.TextField(blank=True)
+    visit_duration_minutes = models.IntegerField(null=True, blank=True)
 
 
 class RouteLocationPing(BaseModel):

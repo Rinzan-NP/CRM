@@ -119,7 +119,8 @@ class RouteVisitSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'route', 'customer', 'check_in', 'check_out', 'lat', 'lon', 
             'status', 'sales_orders', 'notes', 'sales_orders_details', 
-            'customer_name', 'route_name'
+            'customer_name', 'route_name', 'payment_collected', 'payment_amount', 
+            'issues_reported', 'visit_duration_minutes'
         ]
         read_only_fields = ['id']
 
