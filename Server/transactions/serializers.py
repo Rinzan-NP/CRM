@@ -182,24 +182,40 @@ class RouteVisitSerializer(serializers.ModelSerializer):
 class RouteSerializer(serializers.ModelSerializer):
     visits = RouteVisitSerializer(many=True, read_only=True)
     salesperson_name = serializers.CharField(source='salesperson.email', read_only=True)
-
+    
     class Meta:
         model = Route
         fields = [
             'id', 'route_number', 'salesperson', 'name', 'date',
             'start_time', 'end_time', 'visits', 'salesperson_name'
         ]
-        read_only_fields = ['id', 'route_number', 'salesperson', 'salesperson_name']
+        read_only_fields = ['id', 'route_number', 'salesperson_name']
+
+    def get_fields(self):
+        fields = super().get_fields()
+        # Get request from context
+        request = self.context.get('request')
+        
+        # Make 'salesperson' read-only for non-admin users
+        if request and request.user.role != 'admin':
+            fields['salesperson'].read_only = True
+        return fields
 
     def create(self, validated_data):
-    # Only set salesperson to request.user if the user is not an admin
+        # For non-admin users, set salesperson to current user
         if self.context['request'].user.role != 'admin':
             validated_data['salesperson'] = self.context['request'].user
-        # If admin, keeip the salesperson from validated_data (from frontend selection)
-        return super().create(validated_data)
+        return super().create(validated_data)   
 
 
 class RouteLocationPingSerializer(serializers.ModelSerializer):
+    route = serializers.UUIDField()
+    lat = serializers.DecimalField(max_digits=9, decimal_places=6)
+    lon = serializers.DecimalField(max_digits=9, decimal_places=6)
+    accuracy_meters = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
+    speed_mps = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
+    heading_degrees = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
+
     class Meta:
         model = RouteLocationPing
         fields = [
@@ -207,7 +223,37 @@ class RouteLocationPingSerializer(serializers.ModelSerializer):
             'speed_mps', 'heading_degrees', 'created_at'
         ]
         read_only_fields = ['id', 'created_at']
-        
+
+    def validate_route(self, value):
+        """Validate that the route exists and belongs to the current user if they're a salesperson"""
+        try:
+            from .models import Route
+            route = Route.objects.get(id=value)
+            user = self.context['request'].user
+            role = getattr(user, 'role', '')
+            if role == 'salesperson' and route.salesperson != user:
+                raise serializers.ValidationError("You can only send location for your own routes")
+            return route
+        except Route.DoesNotExist:
+            raise serializers.ValidationError("Route not found")
+
+    def validate_lat(self, value):
+        """Validate latitude is within valid range"""
+        if value < -90 or value > 90:
+            raise serializers.ValidationError("Latitude must be between -90 and 90")
+        return value
+
+    def validate_lon(self, value):
+        """Validate longitude is within valid range"""
+        if value < -180 or value > 180:
+            raise serializers.ValidationError("Longitude must be between -180 and 180")
+        return value
+
+    def validate(self, data):
+        """Additional validation"""
+        print(f"Validating RouteLocationPing data: {data}")  # Debug print
+        return data
+
 
 # serializers.py
 class CustomerSerializer(serializers.ModelSerializer):

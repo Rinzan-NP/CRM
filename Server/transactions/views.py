@@ -357,10 +357,56 @@ class RouteLocationPingViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         qs = super().get_queryset()
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        # Salespeople can only view their own route pings
+        if role == 'salesperson':
+            qs = qs.filter(route__salesperson=user)
         route_id = self.request.query_params.get('route')
         if route_id:
             qs = qs.filter(route_id=route_id)
         return qs.order_by('-created_at')
+
+    def create(self, request, *args, **kwargs):
+        """Override create to add debugging"""
+        print(f"Creating RouteLocationPing with data: {request.data}")
+        print(f"User: {request.user}, Role: {getattr(request.user, 'role', 'N/A')}")
+        print(f"Data types: route={type(request.data.get('route'))}, lat={type(request.data.get('lat'))}, lon={type(request.data.get('lon'))}")
+        
+        try:
+            # Validate the data first
+            serializer = self.get_serializer(data=request.data)
+            if not serializer.is_valid():
+                print(f"Serializer validation errors: {serializer.errors}")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            return super().create(request, *args, **kwargs)
+        except Exception as e:
+            print(f"Error creating RouteLocationPing: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        route = serializer.validated_data.get('route')
+        # Salespeople can only create pings for their own routes
+        if role == 'salesperson' and route and route.salesperson != user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You can only send location for your own routes')
+        serializer.save()
+
+    @action(detail=False, methods=['post'])
+    def test_ping(self, request):
+        """Test endpoint to verify ping creation works"""
+        print(f"Test ping received: {request.data}")
+        return Response({
+            'message': 'Test ping received successfully',
+            'data': request.data,
+            'user': str(request.user),
+            'role': getattr(request.user, 'role', 'N/A')
+        })
 
 
 

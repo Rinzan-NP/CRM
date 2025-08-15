@@ -1,5 +1,6 @@
 // src/pages/Routes.jsx
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchRoutes, createRoute, updateRoute, deleteRoute } from '../redux/routesSlice';
 import { fetchSalesPersons } from '../redux/salesPersonSlice';
@@ -17,6 +18,7 @@ const Routes = () => {
   const { routes, loading: loadingRoutes, error: routesError } = useSelector((state) => state.routes);
   const { salesPersons = [], loading: loadingSalesPersons, error: salesPersonError } = useSelector((state) => state.salesPersons || {});
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const user = useSelector((state) => state.auth.user);
   
   // Check if user is admin
@@ -304,6 +306,13 @@ const Routes = () => {
                           className="text-indigo-600 hover:text-indigo-900 mr-4"
                         >
                           <FiEdit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => navigate(`/transactions/route-live-tracker?route=${route.id}`)}
+                          className="text-emerald-600 hover:text-emerald-900 mr-4"
+                          title="Live Track"
+                        >
+                          <LiveIcon className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(route.id)}
