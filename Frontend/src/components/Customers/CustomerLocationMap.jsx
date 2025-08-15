@@ -1,30 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
-import { Icon } from 'leaflet';
 import { FiMapPin, FiNavigation, FiTarget, FiUsers, FiSearch } from 'react-icons/fi';
 import api from '../../services/api';
-import 'leaflet/dist/leaflet.css';
-
-// Custom map icons
-const createCustomIcon = (color, iconType = 'marker') => {
-  const iconSize = iconType === 'marker' ? [25, 41] : [20, 20];
-  const iconAnchor = iconType === 'marker' ? [12, 41] : [10, 10];
-  
-  return new Icon({
-    iconUrl: `data:image/svg+xml;base64,${btoa(`
-      <svg width="${iconSize[0]}" height="${iconSize[1]}" viewBox="0 0 ${iconSize[0]} ${iconSize[1]}" xmlns="http://www.w3.org/2000/svg">
-        ${iconType === 'marker' ? `
-          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="${color}"/>
-        ` : `
-          <circle cx="10" cy="10" r="8" fill="${color}" stroke="white" stroke-width="2"/>
-        `}
-      </svg>
-    `)}`,
-    iconSize,
-    iconAnchor,
-    popupAnchor: [0, -41]
-  });
-};
+import { GoogleMapsProvider, GoogleMap, Marker, Circle, InfoWindow, Autocomplete, defaultMapContainerStyle } from '../Common/GoogleMapWrapper';
 
 // Map controls component
 const MapControls = ({ onFindNearby, onShowAll, currentLocation }) => {
@@ -94,19 +71,6 @@ const MapControls = ({ onFindNearby, onShowAll, currentLocation }) => {
   );
 };
 
-// Map center component
-const MapCenter = ({ center, zoom }) => {
-  const map = useMap();
-  
-  useEffect(() => {
-    if (center && center.length === 2) {
-      map.setView(center, zoom);
-    }
-  }, [center, zoom, map]);
-  
-  return null;
-};
-
 const CustomerLocationMap = ({ onCustomerSelect, selectedCustomerId }) => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -115,6 +79,7 @@ const CustomerLocationMap = ({ onCustomerSelect, selectedCustomerId }) => {
   const [mapCenter, setMapCenter] = useState([25.2048, 55.2708]); // Default to Dubai
   const [mapZoom, setMapZoom] = useState(10);
   const [showNearbyOnly, setShowNearbyOnly] = useState(false);
+  const [activeCustomer, setActiveCustomer] = useState(null);
 
   // Fetch customers with coordinates
   const fetchCustomers = async () => {
@@ -217,89 +182,74 @@ const CustomerLocationMap = ({ onCustomerSelect, selectedCustomerId }) => {
   return (
     <div className="relative">
       <div className="h-96 w-full rounded-lg overflow-hidden border">
-        <MapContainer
-          center={mapCenter}
-          zoom={mapZoom}
-          className="h-full w-full"
-        >
-          <MapCenter center={mapCenter} zoom={mapZoom} />
-          
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          />
-
-          {/* Current location marker */}
-          {currentLocation && (
-            <Circle
-              center={[currentLocation.lat, currentLocation.lon]}
-              radius={100}
-              pathOptions={{
-                color: '#3B82F6',
-                fillColor: '#3B82F6',
-                fillOpacity: 0.3
+        <GoogleMapsProvider>
+          <div className="absolute top-3 left-3 z-[1000] w-72">
+            <Autocomplete
+              onLoad={(ac) => { window.__customerMapAC = ac; }}
+              onPlaceChanged={() => {
+                const place = window.__customerMapAC?.getPlace();
+                if (!place || !place.geometry || !place.geometry.location) return;
+                const lat = place.geometry.location.lat();
+                const lng = place.geometry.location.lng();
+                setMapCenter([lat, lng]);
+                setMapZoom(13);
               }}
             >
-              <Popup>
-                <div className="text-center">
-                  <h3 className="font-semibold text-blue-600">Your Location</h3>
-                  <p className="text-sm text-gray-600">
-                    {currentLocation.lat.toFixed(6)}, {currentLocation.lon.toFixed(6)}
-                  </p>
-                </div>
-              </Popup>
-            </Circle>
-          )}
+              <input
+                type="text"
+                placeholder="Search places..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none bg-white"
+              />
+            </Autocomplete>
+          </div>
+          <GoogleMap
+            center={{
+              lat: Number.isFinite(parseFloat(mapCenter[0])) ? parseFloat(mapCenter[0]) : 25.2048,
+              lng: Number.isFinite(parseFloat(mapCenter[1])) ? parseFloat(mapCenter[1]) : 55.2708,
+            }}
+            zoom={mapZoom}
+            mapContainerStyle={defaultMapContainerStyle}
+            options={{ streetViewControl: false }}
+          >
+            {currentLocation && Number.isFinite(parseFloat(currentLocation.lat)) && Number.isFinite(parseFloat(currentLocation.lon)) && (
+              <Circle
+                center={{ lat: parseFloat(currentLocation.lat), lng: parseFloat(currentLocation.lon) }}
+                radius={100}
+                options={{ strokeColor: '#3B82F6', fillColor: '#3B82F6', fillOpacity: 0.3 }}
+              />
+            )}
 
-          {/* Customer markers */}
-          {customers.map((customer) => (
-            <Marker
-              key={customer.id}
-              position={[parseFloat(customer.lat), parseFloat(customer.lon)]}
-              icon={createCustomIcon(
-                selectedCustomerId === customer.id ? '#EF4444' : 
-                customer.location_verified ? '#10B981' : '#F59E0B'
-              )}
-              eventHandlers={{
-                click: () => onCustomerSelect && onCustomerSelect(customer)
-              }}
-            >
-              <Popup>
+            {customers.map((customer) => (
+              <Marker
+                key={customer.id}
+                position={{ lat: parseFloat(customer.lat), lng: parseFloat(customer.lon) }}
+                onClick={() => setActiveCustomer(customer)}
+              />
+            ))}
+
+            {activeCustomer && (
+              <InfoWindow
+                position={{ lat: parseFloat(activeCustomer.lat), lng: parseFloat(activeCustomer.lon) }}
+                onCloseClick={() => setActiveCustomer(null)}
+              >
                 <div className="text-center min-w-[200px]">
-                  <h3 className="font-semibold text-gray-900 mb-2">{customer.name}</h3>
-                  
+                  <h3 className="font-semibold text-gray-900 mb-2">{activeCustomer.name}</h3>
                   <div className="space-y-1 text-sm text-gray-600">
-                    <p>{customer.email}</p>
-                    {customer.phone && <p>{customer.phone}</p>}
-                    
+                    <p>{activeCustomer.email}</p>
+                    {activeCustomer.phone && <p>{activeCustomer.phone}</p>}
                     <div className="mt-2 pt-2 border-t border-gray-200">
                       <p className="font-medium text-gray-700">Location:</p>
-                      <p>{customer.location_display}</p>
-                      {customer.distance_km && (
-                        <p className="text-blue-600 font-medium">
-                          {customer.distance_km} km away
-                        </p>
+                      <p>{activeCustomer.location_display}</p>
+                      {activeCustomer.distance_km && (
+                        <p className="text-blue-600 font-medium">{activeCustomer.distance_km} km away</p>
                       )}
-                    </div>
-
-                    <div className="mt-2 pt-2 border-t border-gray-200">
-                      <div className="flex items-center justify-center gap-2">
-                        {customer.location_verified ? (
-                          <FiCheckCircle className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <FiTarget className="h-4 w-4 text-yellow-500" />
-                        )}
-                        <span className="text-xs text-gray-500">
-                          {customer.location_verified ? 'Verified' : 'Coordinates Set'}
-                        </span>
-                      </div>
                     </div>
                   </div>
                 </div>
-              </Popup>
-            </Marker>
-          ))}
-        </MapContainer>
+              </InfoWindow>
+            )}
+          </GoogleMap>
+        </GoogleMapsProvider>
       </div>
 
       {/* Map Controls */}

@@ -6,6 +6,7 @@ import Button from '../ui/Button';
 import Toast from '../Common/Toast';
 import MapLocationPicker from './MapLocationPicker';
 import api from '../../services/api';
+import { GoogleMapsProvider, Autocomplete } from '../Common/GoogleMapWrapper';
 
 const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
   const [formData, setFormData] = useState({
@@ -28,9 +29,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
   const [info, setInfo] = useState('');
   const [locationStatus, setLocationStatus] = useState('none'); // none, coordinates, verified
   const [showMapPicker, setShowMapPicker] = useState(false);
-  const [addressSuggestions, setAddressSuggestions] = useState([]);
-  const [showAddressSuggestions, setShowAddressSuggestions] = useState(false);
-  const [searchingAddress, setSearchingAddress] = useState(false);
+  const addressAutocompleteRef = useRef(null);
 
   useEffect(() => {
     if (customer) {
@@ -65,63 +64,30 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
       ...prev,
       [name]: value
     }));
-
-    // If address is being typed, search for suggestions
-    if (name === 'address' && value.length > 3) {
-      searchAddressSuggestions(value);
-    } else if (name === 'address') {
-      setAddressSuggestions([]);
-      setShowAddressSuggestions(false);
-    }
   };
 
-  const searchAddressSuggestions = async (query) => {
-    if (query.length < 3) return;
-    
-    setSearchingAddress(true);
-    try {
-      // Use OpenStreetMap Nominatim API for address suggestions
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`
-      );
-      const data = await response.json();
-      
-      const suggestions = data.map(item => ({
-        display: item.display_name,
-        lat: parseFloat(item.lat),
-        lon: parseFloat(item.lon),
-        address: {
-          city: item.address?.city || item.address?.town || item.address?.village || '',
-          state: item.address?.state || item.address?.province || '',
-          country: item.address?.country || '',
-          postal_code: item.address?.postcode || ''
-        }
-      }));
-      
-      setAddressSuggestions(suggestions);
-      setShowAddressSuggestions(true);
-    } catch (err) {
-      console.error('Address search failed:', err);
-    } finally {
-      setSearchingAddress(false);
-    }
-  };
-
-  const selectAddressSuggestion = (suggestion) => {
+  const fillAddressFromPlace = (place) => {
+    if (!place || !place.geometry || !place.geometry.location) return;
+    const lat = place.geometry.location.lat();
+    const lng = place.geometry.location.lng();
+    const components = place.address_components || [];
+    const get = (type) => components.find(c => c.types.includes(type))?.long_name || '';
+    const city = get('locality') || get('sublocality') || get('administrative_area_level_2');
+    const state = get('administrative_area_level_1');
+    const country = get('country');
+    const postal_code = get('postal_code');
     setFormData(prev => ({
       ...prev,
-      address: suggestion.display,
-      lat: suggestion.lat,
-      lon: suggestion.lon,
-      city: suggestion.address.city,
-      state: suggestion.address.state,
-      country: suggestion.address.country,
-      postal_code: suggestion.address.postal_code
+      address: place.formatted_address || prev.address,
+      lat: parseFloat(lat.toFixed(6)),
+      lon: parseFloat(lng.toFixed(6)),
+      city,
+      state,
+      country,
+      postal_code
     }));
-    
     setLocationStatus('coordinates');
-    setShowAddressSuggestions(false);
-    setInfo('Address selected! GPS coordinates and address details updated.');
+    setInfo('Address selected! Coordinates and details filled from Google Places.');
   };
 
   const handleGeocodeAddress = async () => {
@@ -344,7 +310,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
               name="phone"
               value={formData.phone}
               onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border  border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </FormField>
 
@@ -377,48 +343,24 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
           </div>
         </div>
 
-        {/* Address Field with Autocomplete */}
+        {/* Address Field with Google Places Autocomplete */}
         <div className="mb-4">
           <FormField label="Address">
-            <div className="relative">
-              <input
-                type="text"
-                name="address"
-                value={formData.address}
-                onChange={handleInputChange}
-                placeholder="Start typing address (e.g., '123 Main St, City')"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              
-              {/* Address Suggestions Dropdown */}
-              {showAddressSuggestions && addressSuggestions.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                  {addressSuggestions.map((suggestion, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => selectAddressSuggestion(suggestion)}
-                      className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 focus:outline-none focus:bg-gray-50"
-                    >
-                      <div className="font-medium text-gray-900">{suggestion.display}</div>
-                      <div className="text-sm text-gray-500">
-                        {suggestion.lat.toFixed(6)}, {suggestion.lon.toFixed(6)}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              
-              {/* Loading indicator */}
-              {searchingAddress && (
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                </div>
-              )}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Type at least 3 characters to see address suggestions
-            </p>
+            <GoogleMapsProvider>
+              <Autocomplete
+                onLoad={(ac) => (addressAutocompleteRef.current = ac)}
+                onPlaceChanged={() => fillAddressFromPlace(addressAutocompleteRef.current?.getPlace())}
+              >
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  placeholder="Start typing address (Google Places)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </Autocomplete>
+            </GoogleMapsProvider>
           </FormField>
         </div>
 
@@ -452,8 +394,8 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
               <span className="text-sm font-medium text-green-800">GPS Coordinates Set</span>
             </div>
             <div className="text-sm text-green-700">
-              <div>Latitude: {formData.lat}</div>
-              <div>Longitude: {formData.lon}</div>
+              {/* <div>Latitude: {formData.lat}</div>
+              <div>Longitude: {formData.lon}</div> */}
               {formData.city && <div>City: {formData.city}</div>}
               {formData.state && <div>State: {formData.state}</div>}
               {formData.country && <div>Country: {formData.country}</div>}

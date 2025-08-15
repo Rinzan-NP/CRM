@@ -1,63 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import { Icon } from 'leaflet';
+import React, { useRef, useState } from 'react';
 import { FiMapPin, FiTarget, FiXCircle } from 'react-icons/fi';
-import 'leaflet/dist/leaflet.css';
-
-// Custom marker icon
-const createMarkerIcon = () => {
-  return new Icon({
-    iconUrl: `data:image/svg+xml;base64,${btoa(`
-      <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="16" cy="16" r="12" fill="#EF4444" stroke="white" stroke-width="3"/>
-        <circle cx="16" cy="16" r="4" fill="white"/>
-      </svg>
-    `)}`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
-    popupAnchor: [0, -32]
-  });
-};
-
-// Map click handler component
-const MapClickHandler = ({ onLocationSelect, selectedLocation }) => {
-  const map = useMapEvents({
-    click: (e) => {
-      const { lat, lng } = e.latlng;
-      onLocationSelect([lat, lng]);
-    },
-  });
-
-  return null;
-};
-
-// Map center component
-const MapCenter = ({ center, zoom }) => {
-  const map = useMap();
-  
-  useEffect(() => {
-    if (center && center.length === 2) {
-      map.setView(center, zoom);
-    }
-  }, [center, zoom, map]);
-  
-  return null;
-};
+import { GoogleMapsProvider, GoogleMap, Marker, Autocomplete, defaultMapContainerStyle } from '../Common/GoogleMapWrapper';
 
 const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
-  const [selectedLocation, setSelectedLocation] = useState(currentLocation);
-  const [mapCenter, setMapCenter] = useState(currentLocation || [25.2048, 55.2708]);
-  const [mapZoom, setMapZoom] = useState(12);
-
-  const handleLocationSelect = (location) => {
-    setSelectedLocation(location);
+  const normalizeLatLng = (value) => {
+    if (!value) return null;
+    if (Array.isArray(value) && value.length === 2) {
+      const lat = parseFloat(value[0]);
+      const lng = parseFloat(value[1]);
+      return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+    }
+    if (typeof value === 'object') {
+      const lat = parseFloat(value.lat);
+      const lng = parseFloat(value.lng ?? value.lon);
+      return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+    }
+    return null;
   };
+
+  const normalized = normalizeLatLng(currentLocation);
+  const initialCenter = normalized || { lat: 25.2048, lng: 55.2708 };
+  const [selectedLocation, setSelectedLocation] = useState(normalized);
+  const [center, setCenter] = useState(initialCenter);
+  const [zoom, setZoom] = useState(12);
+  const autocompleteRef = useRef(null);
 
   const handleConfirmLocation = () => {
     if (selectedLocation) {
-      // Round coordinates to 6 decimal places to match database precision
-      const lat = parseFloat(selectedLocation[0].toFixed(6));
-      const lon = parseFloat(selectedLocation[1].toFixed(6));
+      const lat = parseFloat(selectedLocation.lat.toFixed(6));
+      const lon = parseFloat(selectedLocation.lng.toFixed(6));
       onLocationSelect(lat, lon);
     }
   };
@@ -67,9 +38,9 @@ const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          const newCenter = [latitude, longitude];
-          setMapCenter(newCenter);
-          setMapZoom(15);
+          const newCenter = { lat: latitude, lng: longitude };
+          setCenter(newCenter);
+          setZoom(15);
           setSelectedLocation(newCenter);
         },
         (error) => {
@@ -121,29 +92,44 @@ const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
         </div>
 
         {/* Map Container */}
-        <div className="h-96 w-full rounded-lg overflow-hidden border mb-4">
-          <MapContainer
-            center={mapCenter}
-            zoom={mapZoom}
-            className="h-full w-full"
-            style={{ height: '100%', width: '100%' }}
-          >
-            <MapCenter center={mapCenter} zoom={mapZoom} />
-            <MapClickHandler onLocationSelect={handleLocationSelect} selectedLocation={selectedLocation} />
-            
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            />
-
-            {/* Selected location marker */}
-            {selectedLocation && (
-              <Marker
-                position={selectedLocation}
-                icon={createMarkerIcon()}
-              />
-            )}
-          </MapContainer>
+        <div className="h-96 w-full rounded-lg overflow-hidden border mb-4 relative">
+          <GoogleMapsProvider>
+            <div className="absolute top-3 left-3 z-[1000] w-72">
+              <Autocomplete
+                onLoad={(ac) => (autocompleteRef.current = ac)}
+                onPlaceChanged={() => {
+                  const place = autocompleteRef.current?.getPlace();
+                  if (!place || !place.geometry || !place.geometry.location) return;
+                  const lat = place.geometry.location.lat();
+                  const lng = place.geometry.location.lng();
+                  const loc = { lat, lng };
+                  setCenter(loc);
+                  setZoom(15);
+                  setSelectedLocation(loc);
+                }}
+              >
+                <input
+                  type="text"
+                  placeholder="Search places..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none bg-white"
+                />
+              </Autocomplete>
+            </div>
+            <GoogleMap
+              center={center}
+              zoom={zoom}
+              mapContainerStyle={defaultMapContainerStyle}
+              options={{ streetViewControl: false, mapTypeControl: false }}
+              onClick={(e) => {
+                const loc = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+                setSelectedLocation(loc);
+              }}
+            >
+              {selectedLocation && (
+                <Marker position={selectedLocation} />
+              )}
+            </GoogleMap>
+          </GoogleMapsProvider>
         </div>
 
         {/* Selected Location Display */}
@@ -157,11 +143,11 @@ const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="font-medium text-green-700">Latitude:</span>
-                <span className="ml-2 text-green-600 font-mono">{selectedLocation[0].toFixed(6)}</span>
+                <span className="ml-2 text-green-600 font-mono">{selectedLocation.lat.toFixed(6)}</span>
               </div>
               <div>
                 <span className="font-medium text-green-700">Longitude:</span>
-                <span className="ml-2 text-green-600 font-mono">{selectedLocation[1].toFixed(6)}</span>
+                <span className="ml-2 text-green-600 font-mono">{selectedLocation.lng.toFixed(6)}</span>
               </div>
             </div>
             

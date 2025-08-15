@@ -1,3 +1,4 @@
 /Server/venv
 *.pyc
 Server/.env
+Frontend/.env

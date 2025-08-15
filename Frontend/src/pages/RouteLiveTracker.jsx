@@ -1,7 +1,5 @@
 // src/pages/RouteLiveTracker.jsx
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from 'react-leaflet';
-import { Icon } from 'leaflet';
 import { FiActivity, FiMapPin, FiNavigation, FiTrendingUp, FiClock, FiZap } from 'react-icons/fi';
 import api from '../services/api';
 import PageHeader from '../components/layout/PageHeader';
@@ -9,28 +7,8 @@ import Loader from '../components/Common/Loader';
 import Toast from '../components/Common/Toast';
 import RouteOptimizer from '../components/Dashboard/RouteOptimizer';
 import CustomerVisitLogger from '../components/Customers/CustomerVisitLogger';
-import 'leaflet/dist/leaflet.css';
+import { GoogleMapsProvider, GoogleMap, Marker, Polyline, Circle, InfoWindow, defaultMapContainerStyle } from '../components/Common/GoogleMapWrapper';
 
-// Custom map icons
-const createCustomIcon = (color, iconType = 'marker') => {
-  const iconSize = iconType === 'marker' ? [25, 41] : [20, 20];
-  const iconAnchor = iconType === 'marker' ? [12, 41] : [10, 10];
-  
-  return new Icon({
-    iconUrl: `data:image/svg+xml;base64,${btoa(`
-      <svg width="${iconSize[0]}" height="${iconSize[1]}" viewBox="0 0 ${iconSize[0]} ${iconSize[1]}" xmlns="http://www.w3.org/2000/svg">
-        ${iconType === 'marker' ? `
-          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="${color}"/>
-        ` : `
-          <circle cx="10" cy="10" r="8" fill="${color}" stroke="white" stroke-width="2"/>
-        `}
-      </svg>
-    `)}`,
-    iconSize,
-    iconAnchor,
-    popupAnchor: [0, -41]
-  });
-};
 
 const RouteLiveTracker = () => {
   const [selectedRouteId, setSelectedRouteId] = useState('');
@@ -353,111 +331,50 @@ const RouteLiveTracker = () => {
         {/* Map Container */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           <div className="h-96 w-full">
-            <MapContainer
-              center={mapData.center}
-              zoom={mapData.zoom}
-              className="h-full w-full"
-              ref={mapRef}
-            >
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              />
+            <GoogleMapsProvider>
+              <GoogleMap
+                center={{
+                  lat: Number.isFinite(parseFloat(mapData.center[0])) ? parseFloat(mapData.center[0]) : 25.2048,
+                  lng: Number.isFinite(parseFloat(mapData.center[1])) ? parseFloat(mapData.center[1]) : 55.2708,
+                }}
+                zoom={mapData.zoom}
+                mapContainerStyle={defaultMapContainerStyle}
+              >
+                {showPlannedRoute && selectedRoute?.visits && selectedRoute.visits.length > 1 && (
+                  <Polyline
+                    path={selectedRoute.visits
+                      .filter(v => v.lat && v.lon)
+                      .map(v => ({ lat: parseFloat(v.lat), lng: parseFloat(v.lon) }))}
+                    options={{ strokeColor: 'blue', strokeOpacity: 0.7, strokeWeight: 3 }}
+                  />
+                )}
 
-              {/* Planned Route (from route visits) */}
-              {showPlannedRoute && selectedRoute?.visits && selectedRoute.visits.length > 1 && (
-                <Polyline
-                  positions={selectedRoute.visits
-                    .filter(v => v.lat && v.lon)
-                    .map(v => [v.lat, v.lon])}
-                  color="blue"
-                  weight={3}
-                  opacity={0.7}
-                  dashArray="10, 5"
-                >
-                  <Popup>Planned Route</Popup>
-                </Polyline>
-              )}
+                {showActualRoute && pings.length > 1 && (
+                  <Polyline
+                    path={pings.map(p => ({ lat: parseFloat(p.lat), lng: parseFloat(p.lon) }))}
+                    options={{ strokeColor: 'red', strokeOpacity: 0.8, strokeWeight: 4 }}
+                  />
+                )}
 
-              {/* Actual Route (from GPS pings) */}
-              {showActualRoute && pings.length > 1 && (
-                <Polyline
-                  positions={pings.map(p => [p.lat, p.lon])}
-                  color="red"
-                  weight={4}
-                  opacity={0.8}
-                >
-                  <Popup>Actual Route Taken</Popup>
-                </Polyline>
-              )}
+                {showPlannedRoute && selectedRoute?.visits && selectedRoute.visits.map((visit, index) => (
+                  visit.lat && visit.lon ? (
+                    <Marker key={`visit-${visit.id}`} position={{ lat: parseFloat(visit.lat), lng: parseFloat(visit.lon) }} />
+                  ) : null
+                ))}
 
-              {/* Planned Route Visit Markers */}
-              {showPlannedRoute && selectedRoute?.visits && selectedRoute.visits.map((visit, index) => (
-                visit.lat && visit.lon && (
-                  <Marker
-                    key={`visit-${visit.id}`}
-                    position={[visit.lat, visit.lon]}
-                    icon={createCustomIcon('#3B82F6', 'circle')}
-                  >
-                    <Popup>
-                      <div className="text-center">
-                        <h3 className="font-semibold">Planned Visit {index + 1}</h3>
-                        <p className="text-sm text-gray-600">{visit.customer?.name || 'Customer'}</p>
-                        <p className="text-xs text-gray-500">Status: {visit.status}</p>
-                      </div>
-                    </Popup>
-                  </Marker>
-                )
-              ))}
+                {showActualRoute && pings.map((ping, index) => (
+                  <Marker key={`ping-${ping.id || index}`} position={{ lat: parseFloat(ping.lat), lng: parseFloat(ping.lon) }} />
+                ))}
 
-              {/* GPS Ping Markers */}
-              {showActualRoute && pings.map((ping, index) => (
-                <Marker
-                  key={`ping-${ping.id || index}`}
-                  position={[ping.lat, ping.lon]}
-                  icon={createCustomIcon('#EF4444')}
-                >
-                  <Popup>
-                    <div className="text-center">
-                      <h3 className="font-semibold">GPS Ping {index + 1}</h3>
-                      <p className="text-sm text-gray-600">
-                        Time: {new Date(ping.created_at).toLocaleTimeString()}
-                      </p>
-                                             {ping.accuracy_meters && (
-                         <p className="text-xs text-gray-500">
-                           Accuracy: {ping.accuracy_meters}m
-                         </p>
-                       )}
-                       {ping.speed_mps && (
-                         <p className="text-xs text-gray-500">
-                           Speed: {(ping.speed_mps * 3.6).toFixed(1)} km/h
-                         </p>
-                       )}
-                    </div>
-                  </Popup>
-                </Marker>
-              ))}
-
-              {/* Real-time Location Marker */}
-              {showRealTime && isTracking && pings.length > 0 && (
-                <Circle
-                  center={[pings[pings.length - 1].lat, pings[pings.length - 1].lon]}
-                  radius={50}
-                  pathOptions={{
-                    color: '#10B981',
-                    fillColor: '#10B981',
-                    fillOpacity: 0.3
-                  }}
-                >
-                  <Popup>
-                    <div className="text-center">
-                      <h3 className="font-semibold text-green-600">Live Location</h3>
-                      <p className="text-sm">Currently tracking...</p>
-                    </div>
-                  </Popup>
-                </Circle>
-              )}
-            </MapContainer>
+                {showRealTime && isTracking && pings.length > 0 && (
+                  <Circle
+                    center={{ lat: parseFloat(pings[pings.length - 1].lat), lng: parseFloat(pings[pings.length - 1].lon) }}
+                    radius={50}
+                    options={{ strokeColor: '#10B981', fillColor: '#10B981', fillOpacity: 0.3 }}
+                  />
+                )}
+              </GoogleMap>
+            </GoogleMapsProvider>
           </div>
         </div>
 
