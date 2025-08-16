@@ -52,6 +52,43 @@ class SalesOrderSerializer(serializers.ModelSerializer):
         order.save(update_fields=['subtotal', 'vat_total', 'grand_total', 'profit'])
         return order
     
+    def update(self, instance, validated_data):
+        # Extract nested line items from validated data
+        line_items_data = validated_data.pop('line_items', [])
+
+        # Update the top-level sales order attributes
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # Process the nested line items
+        current_line_items = list(instance.line_items.all())
+        
+        # Update existing line items based on product_id or other unique key
+        for item_data in line_items_data:
+            # Find a matching existing line item based on product_id or any unique identifier
+            existing_item = next(
+                (item for item in current_line_items 
+                if item.product_id == item_data.get('product_id')), 
+                None
+            )
+            
+            if existing_item:
+                # Update the existing line item
+                for attr, value in item_data.items():
+                    setattr(existing_item, attr, value)
+                existing_item.save()
+                current_line_items.remove(existing_item)  # Remove it from the list so we don't delete it later
+            else:
+                # Create a new line item
+                OrderLineItem.objects.create(sales_order=instance, **item_data)
+
+        # Delete any leftover line items that were not updated or recreated
+        for item in current_line_items:
+            item.delete()
+
+        return instance
+    
 class PurchaseOrderLineItemSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
     product_id = serializers.UUIDField(write_only=True)
