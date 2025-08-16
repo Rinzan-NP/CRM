@@ -20,7 +20,7 @@ class SalesOrder(BaseModel):
     customer = models.ForeignKey(
         Customer, on_delete=models.CASCADE, related_name="sales_orders"
     )
-    salesperson = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    
     order_date = models.DateField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)

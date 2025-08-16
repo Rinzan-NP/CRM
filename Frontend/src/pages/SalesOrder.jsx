@@ -41,6 +41,7 @@ const SalesOrders = () => {
     const dispatch = useDispatch();
     const [salesOrder, setSalesOrder] = useState({
         customer: "",
+        // salesperson removed - will be auto-filled from route context
         order_date: "",
         status: "draft",
         prices_include_vat: false,
@@ -258,6 +259,15 @@ const SalesOrders = () => {
             header: "Customer",
             accessor: "customer",
             cell: (row) => getCustomerName(row.customer),
+        },
+        {
+            header: "Salesperson",
+            accessor: "salesperson",
+            cell: (row) => (
+                <span className="text-slate-600">
+                    {row.salesperson?.name || row.salesperson?.email || 'N/A'}
+                </span>
+            ),
         },
         {
             header: "Order Date",

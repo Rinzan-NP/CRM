@@ -24,9 +24,26 @@ const RouteLiveTracker = () => {
   const [showActualRoute, setShowActualRoute] = useState(true);
   const [showRealTime, setShowRealTime] = useState(true);
   const [currentLocation, setCurrentLocation] = useState(null);
+  const [lastPingLocation, setLastPingLocation] = useState(null);
   
   const watchIdRef = useRef(null);
   const mapRef = useRef(null);
+
+  // Calculate distance between two coordinates using Haversine formula
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  };
 
   // Fetch routes on component mount
   useEffect(() => {
@@ -107,32 +124,47 @@ const RouteLiveTracker = () => {
 
     setIsTracking(true);
     const id = navigator.geolocation.watchPosition(async (position) => {
-      const payload = {
-        route: selectedRouteId,
-        lat: position.coords.latitude,
-        lon: position.coords.longitude,
-        accuracy_meters: position.coords.accuracy ? Math.round(position.coords.accuracy * 1000000) / 1000000 : null,
-        speed_mps: position.coords.speed ? Math.round(position.coords.speed * 10000) / 10000 : null,
-        heading_degrees: position.coords.heading ? Math.round(position.coords.heading * 100) / 100 : null,
-      };
-      
-      // Update current location for visit logging
-      setCurrentLocation({
+      const newLocation = {
         lat: position.coords.latitude,
         lon: position.coords.longitude
-      });
+      };
       
-      try {
-        const response = await api.post('/transactions/route-location-pings/', payload);
-        setInfo('Location sent');
+      // Check if we've actually moved significantly (more than 10 meters)
+      const hasMoved = !lastPingLocation || calculateDistance(
+        lastPingLocation.lat, lastPingLocation.lon,
+        newLocation.lat, newLocation.lon
+      ) > 10; // 10 meters threshold
+      
+      if (hasMoved) {
+        const payload = {
+          route: selectedRouteId,
+          lat: position.coords.latitude,
+          lon: position.coords.longitude,
+          accuracy_meters: position.coords.accuracy ? Math.round(position.coords.accuracy * 1000000) / 1000000 : null,
+          speed_mps: position.coords.speed ? Math.round(position.coords.speed * 10000) / 10000 : null,
+          heading_degrees: position.coords.heading ? Math.round(position.coords.heading * 100) / 100 : null,
+        };
         
-        // Update pings state for real-time display
-        setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
+        // Update current location for visit logging
+        setCurrentLocation(newLocation);
+        setLastPingLocation(newLocation);
         
-        // Fetch updated summary
-        fetchRouteSummary();
-      } catch (e) {
-        setError(e?.response?.data?.detail || e?.response?.data || 'Failed to send location');
+        try {
+          const response = await api.post('/transactions/route-location-pings/', payload);
+          setInfo('Location updated - movement detected');
+          
+          // Update pings state for real-time display
+          setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
+          
+          // Fetch updated summary
+          fetchRouteSummary();
+        } catch (e) {
+          setError(e?.response?.data?.detail || e?.response?.data || 'Failed to send location');
+        }
+      } else {
+        // Just update current location without sending ping
+        setCurrentLocation(newLocation);
+        setInfo('Location updated - no significant movement');
       }
     }, (err) => {
       setIsTracking(false);
@@ -149,10 +181,14 @@ const RouteLiveTracker = () => {
         default:
           setError(err.message || 'Unknown location error');
       }
-    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+    }, { 
+      enableHighAccuracy: false, // Use standard accuracy to reduce GPS drift
+      timeout: 30000, // 30 second timeout
+      maximumAge: 300000 // 5 minute maximum age - reduces unnecessary GPS requests when stationary
+    });
     
     watchIdRef.current = id;
-  }, [selectedRouteId, fetchRouteSummary]);
+  }, [selectedRouteId, fetchRouteSummary, lastPingLocation]);
 
   // Stop route tracking
   const stopTracking = useCallback(async () => {
@@ -185,13 +221,13 @@ const RouteLiveTracker = () => {
     }
   }, [selectedRouteId, fetchRoutePings, fetchRouteSummary]);
 
-  // Set up polling for real-time updates
+  // Set up polling for real-time updates - changed to 5 minutes to reduce unnecessary API calls
   useEffect(() => {
     if (isTracking && selectedRouteId) {
       const interval = setInterval(() => {
         fetchRoutePings();
         fetchRouteSummary();
-      }, 5000); // Poll every 5 seconds
+      }, 300000); // Poll every 5 minutes (300 seconds) - reduces API calls when stationary
       
       return () => clearInterval(interval);
     }
@@ -243,7 +279,7 @@ const RouteLiveTracker = () => {
       <div className="max-w-7xl mx-auto space-y-6">
         <PageHeader
           title="Route Live Tracker"
-          subtitle="Advanced GPS tracking with route optimization and real-time visualization"
+          subtitle="Advanced GPS tracking with route optimization and real-time visualization (movement-based updates)"
         />
 
         {/* Controls Panel */}
@@ -283,14 +319,49 @@ const RouteLiveTracker = () => {
                     <FiActivity /> Start Tracking
                   </button>
                 ) : (
-                  <button
-                    onClick={stopTracking}
-                    className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2"
-                  >
-                    <FiActivity /> Stop Tracking
-                  </button>
+                  <>
+                    <button
+                      onClick={stopTracking}
+                      className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2"
+                    >
+                      <FiActivity /> Stop Tracking
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (navigator.geolocation) {
+                          navigator.geolocation.getCurrentPosition(async (position) => {
+                            const payload = {
+                              route: selectedRouteId,
+                              lat: position.coords.latitude,
+                              lon: position.coords.longitude,
+                              accuracy_meters: position.coords.accuracy ? Math.round(position.coords.accuracy * 1000000) / 1000000 : null,
+                              speed_mps: position.coords.speed ? Math.round(position.coords.speed * 10000) / 10000 : null,
+                              heading_degrees: position.coords.heading ? Math.round(position.coords.heading * 100) / 100 : null,
+                            };
+                            
+                            try {
+                              const response = await api.post('/transactions/route-location-pings/', payload);
+                              setInfo('Manual location ping sent');
+                              setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
+                              fetchRouteSummary();
+                            } catch (e) {
+                              setError('Failed to send manual ping');
+                            }
+                          });
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+                    >
+                      📍 Manual Ping
+                    </button>
+                  </>
                 )}
               </div>
+              {isTracking && (
+                <p className="mt-2 text-sm text-gray-600">
+                  📍 GPS tracking active (updates when movement detected)
+                </p>
+              )}
             </div>
 
             {/* Display Options */}
@@ -493,5 +564,3 @@ const RouteLiveTracker = () => {
 };
 
 export default RouteLiveTracker;
-
-

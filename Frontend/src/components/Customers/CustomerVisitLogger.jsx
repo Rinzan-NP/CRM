@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FiMapPin, FiClock, FiFileText, FiShoppingCart, FiCheckCircle, FiXCircle } from 'react-icons/fi';
+import { FiMapPin, FiClock, FiFileText, FiShoppingCart, FiCheckCircle, FiXCircle, FiPlus, FiX } from 'react-icons/fi';
 import api from '../../services/api';
 import Toast from '../Common/Toast';
 
@@ -27,12 +27,93 @@ const CustomerVisitLogger = ({
     issues_reported: ''
   });
 
+  // Sales order creation state
+  const [showSalesOrderModal, setShowSalesOrderModal] = useState(false);
+  const [salesOrderData, setSalesOrderData] = useState({
+    customer: '',
+    order_date: new Date().toISOString().split('T')[0],
+    status: 'draft',
+    prices_include_vat: false,
+    line_items: [
+      {
+        product_id: '',
+        quantity: 1,
+        unit_price: 0.0,
+        discount: 0.0,
+        line_total: 0.0,
+      },
+    ],
+    subtotal: 0.0,
+    vat_total: 0.0,
+    grand_total: 0.0,
+  });
+  const [products, setProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+
   // Fetch route visits when route changes
   useEffect(() => {
     if (selectedRouteId) {
       fetchRouteVisits();
     }
   }, [selectedRouteId]);
+
+  // Fetch products for sales order creation
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      setLoadingProducts(true);
+      const response = await api.get('/main/products/');
+      setProducts(response.data);
+    } catch (err) {
+      console.error('Failed to fetch products:', err);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  const handleCreateSalesOrder = async (visitId) => {
+    try {
+      setLoading(true);
+      const response = await api.post('/transactions/sales-orders/create_from_route/', {
+        ...salesOrderData,
+        route_id: selectedRouteId,
+        customer_id: visitId
+      });
+      
+      setInfo('Sales order created successfully!');
+      setShowSalesOrderModal(false);
+      setSalesOrderData({
+        customer: '',
+        order_date: new Date().toISOString().split('T')[0],
+        status: 'draft',
+        prices_include_vat: false,
+        line_items: [
+          {
+            product_id: '',
+            quantity: 1,
+            unit_price: 0.0,
+            discount: 0.0,
+            line_total: 0.0,
+          },
+        ],
+        subtotal: 0.0,
+        vat_total: 0.0,
+        grand_total: 0.0,
+      });
+      
+      // Refresh visits
+      await fetchRouteVisits();
+      if (onVisitLogged) onVisitLogged(response.data);
+      
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Failed to create sales order');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchRouteVisits = async () => {
     try {
@@ -243,16 +324,29 @@ const CustomerVisitLogger = ({
                 )}
                 
                 {visit.status === 'visited' && !visit.check_out && (
-                  <button
-                    onClick={() => {
-                      setSelectedVisit(visit);
-                      setShowCheckOutModal(true);
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 flex items-center gap-2"
-                    disabled={loading}
-                  >
-                    <FiClock /> Check Out
-                  </button>
+                  <>
+                    <button
+                      onClick={() => {
+                        setSelectedVisit(visit);
+                        setShowCheckOutModal(true);
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 flex items-center gap-2"
+                      disabled={loading}
+                    >
+                      <FiClock /> Check Out
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedVisit(visit);
+                        setSalesOrderData(prev => ({ ...prev, customer: visit.customer }));
+                        setShowSalesOrderModal(true);
+                      }}
+                      className="px-4 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 flex items-center gap-2"
+                      disabled={loading}
+                    >
+                      <FiShoppingCart /> Create Order
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -391,6 +485,190 @@ const CustomerVisitLogger = ({
                 {loading ? 'Checking Out...' : 'Check Out'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sales Order Creation Modal */}
+      {showSalesOrderModal && selectedVisit && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold">Create Sales Order - {selectedVisit.customer_name}</h3>
+              <button
+                onClick={() => setShowSalesOrderModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <FiX className="h-6 w-6" />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleCreateSalesOrder(selectedVisit.customer); }} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Order Date</label>
+                  <input
+                    type="date"
+                    value={salesOrderData.order_date}
+                    onChange={(e) => setSalesOrderData(prev => ({ ...prev, order_date: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <select
+                    value={salesOrderData.status}
+                    onChange={(e) => setSalesOrderData(prev => ({ ...prev, status: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="confirmed">Confirmed</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={salesOrderData.prices_include_vat}
+                  onChange={(e) => setSalesOrderData(prev => ({ ...prev, prices_include_vat: e.target.checked }))}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label className="ml-2 text-sm text-gray-700">Prices include VAT</label>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-lg font-medium text-gray-900">Line Items</h4>
+                  <button
+                    type="button"
+                    onClick={() => setSalesOrderData(prev => ({
+                      ...prev,
+                      line_items: [...prev.line_items, {
+                        product_id: '',
+                        quantity: 1,
+                        unit_price: 0.0,
+                        discount: 0.0,
+                        line_total: 0.0,
+                      }]
+                    }))}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100"
+                  >
+                    <FiPlus className="h-4 w-4" />
+                    Add Item
+                  </button>
+                </div>
+
+                {salesOrderData.line_items.map((item, index) => (
+                  <div key={index} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+                        <select
+                          value={item.product_id}
+                          onChange={(e) => {
+                            const newLineItems = [...salesOrderData.line_items];
+                            newLineItems[index].product_id = e.target.value;
+                            setSalesOrderData(prev => ({ ...prev, line_items: newLineItems }));
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          required
+                        >
+                          <option value="">Select Product</option>
+                          {products.map((product) => (
+                            <option key={product.id} value={product.id}>
+                              {product.name} - ₹{product.unit_price}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const newLineItems = [...salesOrderData.line_items];
+                            newLineItems[index].quantity = parseInt(e.target.value) || 1;
+                            setSalesOrderData(prev => ({ ...prev, line_items: newLineItems }));
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          min="1"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Unit Price</label>
+                        <input
+                          type="number"
+                          value={item.unit_price}
+                          onChange={(e) => {
+                            const newLineItems = [...salesOrderData.line_items];
+                            newLineItems[index].unit_price = parseFloat(e.target.value) || 0;
+                            setSalesOrderData(prev => ({ ...prev, line_items: newLineItems }));
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          step="0.01"
+                          min="0"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Discount %</label>
+                        <input
+                          type="number"
+                          value={item.discount}
+                          onChange={(e) => {
+                            const newLineItems = [...salesOrderData.line_items];
+                            newLineItems[index].discount = parseFloat(e.target.value) || 0;
+                            setSalesOrderData(prev => ({ ...prev, line_items: newLineItems }));
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                        />
+                      </div>
+
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newLineItems = salesOrderData.line_items.filter((_, i) => i !== index);
+                            setSalesOrderData(prev => ({ ...prev, line_items: newLineItems }));
+                          }}
+                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md"
+                        >
+                          <FiX className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowSalesOrderModal(false)}
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {loading ? 'Creating...' : 'Create Sales Order'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

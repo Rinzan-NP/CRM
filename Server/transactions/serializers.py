@@ -20,6 +20,7 @@ class OrderLineItemSerializer(serializers.ModelSerializer):
 
 class SalesOrderSerializer(serializers.ModelSerializer):
     line_items = OrderLineItemSerializer(many=True, read_only=False)
+    salesperson = serializers.SerializerMethodField()  # Get from route visit context
 
     class Meta:
         model = SalesOrder
@@ -29,10 +30,20 @@ class SalesOrderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['subtotal', 'vat_total', 'grand_total', 'profit', 'salesperson', 'order_number']
 
+    def get_salesperson(self, obj):
+        """Get salesperson from route visit context"""
+        route_visit = obj.route_visits.first()
+        if route_visit and route_visit.route.salesperson:
+            return {
+                'id': route_visit.route.salesperson.id,
+                'email': route_visit.route.salesperson.email,
+                'name': getattr(route_visit.route.salesperson, 'first_name', '') + ' ' + getattr(route_visit.route.salesperson, 'last_name', '')
+            }
+        return None
+
     def create(self, validated_data):
         line_data = validated_data.pop('line_items', [])
-        validated_data['salesperson'] = self.context['request'].user
-        # print("Creating Sales Order with data:", validated_data)
+        # salesperson field removed - will be derived from route visit context
         order = SalesOrder.objects.create(**validated_data)
         for item in line_data:
             print(item)

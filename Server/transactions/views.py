@@ -27,7 +27,8 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         user = self.request.user
         role = getattr(user, 'role', '')
         if role == 'salesperson':
-            return qs.filter(salesperson=user)
+            # Filter by route visits where user is the salesperson
+            return qs.filter(route_visits__route__salesperson=user).distinct()
         return qs
 
     def get_serializer(self, *args, **kwargs):
@@ -40,6 +41,50 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         """Return computed profit for this order."""
         order = self.get_object()
         return Response({"profit": str(order.profit)})
+
+    @action(detail=False, methods=["post"])
+    def create_from_route(self, request):
+        """Create a sales order in the context of a route visit"""
+        user = request.user
+        route_id = request.data.get('route_id')
+        customer_id = request.data.get('customer_id')
+        
+        if not route_id or not customer_id:
+            return Response(
+                {'detail': 'route_id and customer_id are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verify user is the salesperson for this route
+        try:
+            route = Route.objects.get(id=route_id, salesperson=user)
+        except Route.DoesNotExist:
+            return Response(
+                {'detail': 'Route not found or access denied'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get or create route visit for this customer
+        route_visit, created = RouteVisit.objects.get_or_create(
+            route=route,
+            customer_id=customer_id,
+            defaults={'status': 'visited'}
+        )
+        
+        # Create sales order
+        order_data = request.data.copy()
+        order_data['customer'] = customer_id
+        order_data['order_date'] = order_data.get('order_date', timezone.now().date())
+        
+        serializer = self.get_serializer(data=order_data)
+        if serializer.is_valid():
+            order = serializer.save()
+            
+            # Link order to route visit
+            route_visit.sales_orders.add(order)
+            
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class PurchaseOrderViewSet(viewsets.ModelViewSet):
     queryset = PurchaseOrder.objects.all()
@@ -84,7 +129,8 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         user = self.request.user
         role = getattr(user, 'role', '')
         if role == 'salesperson':
-            return qs.filter(sales_order__salesperson=user)
+            # Filter by route visits where user is the salesperson
+            return qs.filter(sales_order__route_visits__route__salesperson=user).distinct()
         return qs
 
     def has_write_access(self):
@@ -116,7 +162,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         user = self.request.user
         role = getattr(user, 'role', '')
         if role == 'salesperson':
-            return qs.filter(invoice__sales_order__salesperson=user)
+            return qs.filter(invoice__sales_order__route_visits__route__salesperson=user)
         return qs
 
     def has_write_access(self):
