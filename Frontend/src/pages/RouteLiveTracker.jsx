@@ -130,12 +130,25 @@ const RouteLiveTracker = () => {
       };
       
       // Check if we've actually moved significantly (more than 10 meters)
-      const hasMoved = !lastPingLocation || calculateDistance(
-        lastPingLocation.lat, lastPingLocation.lon,
-        newLocation.lat, newLocation.lon
-      ) > 10; // 10 meters threshold
-      
-      if (hasMoved) {
+      const hasMovedSignificantly = (lastLocation, newLocation, accuracy) => {
+          if (!lastLocation) return true;
+          
+          const distance = calculateDistance(
+            lastLocation.lat, lastLocation.lon,
+            newLocation.lat, newLocation.lon
+          );
+          
+          const accuracyMeters = accuracy || 25;
+          const movementThreshold = Math.max(20, accuracyMeters * 2);
+          
+          return distance > movementThreshold;
+        };
+
+        const isAccurateEnough = (accuracy) => {
+          return !accuracy || accuracy <= 50; 
+        };
+
+      if (hasMovedSignificantly && isAccurateEnough(position.coords.accuracy)) {
         const payload = {
           route: selectedRouteId,
           lat: position.coords.latitude,
@@ -181,11 +194,11 @@ const RouteLiveTracker = () => {
         default:
           setError(err.message || 'Unknown location error');
       }
-    }, { 
-      enableHighAccuracy: false, // Use standard accuracy to reduce GPS drift
-      timeout: 30000, // 30 second timeout
-      maximumAge: 300000 // 5 minute maximum age - reduces unnecessary GPS requests when stationary
-    });
+    }, {
+  enableHighAccuracy: true,     
+  timeout: 30000,               
+  maximumAge: 60000           
+});
     
     watchIdRef.current = id;
   }, [selectedRouteId, fetchRouteSummary, lastPingLocation]);
@@ -326,34 +339,7 @@ const RouteLiveTracker = () => {
                     >
                       <FiActivity /> Stop Tracking
                     </button>
-                    <button
-                      onClick={async () => {
-                        if (navigator.geolocation) {
-                          navigator.geolocation.getCurrentPosition(async (position) => {
-                            const payload = {
-                              route: selectedRouteId,
-                              lat: position.coords.latitude,
-                              lon: position.coords.longitude,
-                              accuracy_meters: position.coords.accuracy ? Math.round(position.coords.accuracy * 1000000) / 1000000 : null,
-                              speed_mps: position.coords.speed ? Math.round(position.coords.speed * 10000) / 10000 : null,
-                              heading_degrees: position.coords.heading ? Math.round(position.coords.heading * 100) / 100 : null,
-                            };
-                            
-                            try {
-                              const response = await api.post('/transactions/route-location-pings/', payload);
-                              setInfo('Manual location ping sent');
-                              setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
-                              fetchRouteSummary();
-                            } catch (e) {
-                              setError('Failed to send manual ping');
-                            }
-                          });
-                        }
-                      }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
-                    >
-                      📍 Manual Ping
-                    </button>
+                    
                   </>
                 )}
               </div>
