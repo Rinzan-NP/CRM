@@ -20,6 +20,7 @@ class OrderLineItemSerializer(serializers.ModelSerializer):
 
 class SalesOrderSerializer(serializers.ModelSerializer):
     line_items = OrderLineItemSerializer(many=True, read_only=False)
+    salesperson = serializers.SerializerMethodField()  # Get from route visit context
 
     class Meta:
         model = SalesOrder
@@ -29,10 +30,20 @@ class SalesOrderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['subtotal', 'vat_total', 'grand_total', 'profit', 'salesperson', 'order_number']
 
+    def get_salesperson(self, obj):
+        """Get salesperson from route visit context"""
+        route_visit = obj.route_visits.first()
+        if route_visit and route_visit.route.salesperson:
+            return {
+                'id': route_visit.route.salesperson.id,
+                'email': route_visit.route.salesperson.email,
+                'name': getattr(route_visit.route.salesperson, 'first_name', '') + ' ' + getattr(route_visit.route.salesperson, 'last_name', '')
+            }
+        return None
+
     def create(self, validated_data):
         line_data = validated_data.pop('line_items', [])
-        validated_data['salesperson'] = self.context['request'].user
-        # print("Creating Sales Order with data:", validated_data)
+        # salesperson field removed - will be derived from route visit context
         order = SalesOrder.objects.create(**validated_data)
         for item in line_data:
             print(item)
@@ -79,21 +90,34 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
     
 
 class PaymentSerializer(serializers.ModelSerializer):
+    
+
     class Meta:
         model = Payment
-        fields = ['id', 'invoice', 'amount', 'paid_on', 'mode']
+        fields = ['id', 'invoice', 'amount', 'paid_on', 'mode', ]
+
+    
 
 class InvoiceSerializer(serializers.ModelSerializer):
     payments = PaymentSerializer(many=True, read_only=True)
     outstanding = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    customer_name = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Invoice
         fields = [
             'id', 'sales_order', 'invoice_no', 'issue_date', 'due_date',
-            'amount_due', 'paid_amount', 'outstanding', 'status', 'payments'
+            'amount_due', 'paid_amount', 'outstanding', 'status', 'payments', 'customer_name'
         ]
         read_only_fields = ['paid_amount', 'status', 'invoice_no']
+        
+    def get_customer_name(self, obj):
+        # Get customer name from related sales order
+        sales_order = getattr(obj, 'sales_order', None)
+        if sales_order and hasattr(sales_order, 'customer') and sales_order.customer:
+            customer = sales_order.customer
+            return customer.name or customer.email or f"{getattr(customer, 'first_name', '')} {getattr(customer, 'last_name', '')}".strip() or 'N/A'
+        return 'N/A'
 
     def create(self, validated_data):
         # Set amount_due from sales order if provided
@@ -119,7 +143,8 @@ class RouteVisitSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'route', 'customer', 'check_in', 'check_out', 'lat', 'lon', 
             'status', 'sales_orders', 'notes', 'sales_orders_details', 
-            'customer_name', 'route_name'
+            'customer_name', 'route_name', 'payment_collected', 'payment_amount', 
+            'issues_reported', 'visit_duration_minutes'
         ]
         read_only_fields = ['id']
 
@@ -182,21 +207,41 @@ class RouteVisitSerializer(serializers.ModelSerializer):
 class RouteSerializer(serializers.ModelSerializer):
     visits = RouteVisitSerializer(many=True, read_only=True)
     salesperson_name = serializers.CharField(source='salesperson.email', read_only=True)
-
+    
     class Meta:
         model = Route
         fields = [
             'id', 'route_number', 'salesperson', 'name', 'date',
             'start_time', 'end_time', 'visits', 'salesperson_name'
         ]
-        read_only_fields = ['id', 'route_number', 'salesperson', 'salesperson_name']
+        read_only_fields = ['id', 'route_number', 'salesperson_name']
+
+    def get_fields(self):
+        fields = super().get_fields()
+        # Get request from context
+        request = self.context.get('request')
+        
+        # Make 'salesperson' read-only for non-admin users
+        if request and request.user.role != 'admin':
+            fields['salesperson'].read_only = True
+        return fields
 
     def create(self, validated_data):
-        validated_data['salesperson'] = self.context['request'].user
-        return super().create(validated_data)
+        # For non-admin users, set salesperson to current user
+        if self.context['request'].user.role != 'admin':
+            validated_data['salesperson'] = self.context['request'].user
+        return super().create(validated_data)   
 
 
 class RouteLocationPingSerializer(serializers.ModelSerializer):
+    route = serializers.UUIDField()
+    lat = serializers.DecimalField(max_digits=20, decimal_places=15)
+    lon = serializers.DecimalField(max_digits=20, decimal_places=15)
+    accuracy_meters = serializers.DecimalField(max_digits=12, decimal_places=6, required=False, allow_null=True)
+    
+    speed_mps = serializers.DecimalField(max_digits=8, decimal_places=4, required=False, allow_null=True)
+    heading_degrees = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
+
     class Meta:
         model = RouteLocationPing
         fields = [
@@ -204,7 +249,37 @@ class RouteLocationPingSerializer(serializers.ModelSerializer):
             'speed_mps', 'heading_degrees', 'created_at'
         ]
         read_only_fields = ['id', 'created_at']
-        
+
+    def validate_route(self, value):
+        """Validate that the route exists and belongs to the current user if they're a salesperson"""
+        try:
+            from .models import Route
+            route = Route.objects.get(id=value)
+            user = self.context['request'].user
+            role = getattr(user, 'role', '')
+            if role == 'salesperson' and route.salesperson != user:
+                raise serializers.ValidationError("You can only send location for your own routes")
+            return route
+        except Route.DoesNotExist:
+            raise serializers.ValidationError("Route not found")
+
+    def validate_lat(self, value):
+        """Validate latitude is within valid range"""
+        if value < -90 or value > 90:
+            raise serializers.ValidationError("Latitude must be between -90 and 90")
+        return value
+
+    def validate_lon(self, value):
+        """Validate longitude is within valid range"""
+        if value < -180 or value > 180:
+            raise serializers.ValidationError("Longitude must be between -180 and 180")
+        return value
+
+    def validate(self, data):
+        """Additional validation"""
+        print(f"Validating RouteLocationPing data: {data}")  # Debug print
+        return data
+
 
 # serializers.py
 class CustomerSerializer(serializers.ModelSerializer):

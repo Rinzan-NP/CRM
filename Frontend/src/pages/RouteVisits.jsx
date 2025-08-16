@@ -11,18 +11,7 @@ import {
 import { fetchRoutes } from "../redux/routesSlice";
 import { fetchCustomers } from "../redux/customersSlice";
 import { fetchSalesOrders } from "../redux/salesOrdersSlice";
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Popup,
-  useMapEvents,
-  useMap,
-} from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import { OpenStreetMapProvider } from "leaflet-geosearch";
-import "leaflet-geosearch/dist/geosearch.css";
+import { GoogleMapsProvider, GoogleMap, Marker, Autocomplete, defaultMapContainerStyle } from "../components/Common/GoogleMapWrapper";
 import PageHeader from '../components/layout/PageHeader';
 import StatsCard from '../components/ui/StatsCard';
 import DataTable from '../components/ui/DataTable';
@@ -30,13 +19,7 @@ import FormField from '../components/ui/FormField';
 import Modal from '../components/Common/Modal';
 import { MapPin, Clock, CheckCircle, XCircle, Plus, Edit, Trash2, ShoppingCart, FileText } from 'lucide-react';
 
-// Fix for default marker icons
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-});
+// Leaflet-specific icon fix removed during Google Maps migration
 
 // Multi-select component for sales orders
 const SalesOrderMultiSelect = ({ 
@@ -146,117 +129,26 @@ const SalesOrderMultiSelect = ({
   );
 };
 
-const LocationPicker = ({ onLocationSelect, position }) => {
-  const map = useMapEvents({
-    click(e) {
-      onLocationSelect(e.latlng);
-    },
-  });
+// Location picker handled via Google Map onClick
 
-  useEffect(() => {
-    if (position) {
-      map.flyTo(position, map.getZoom());
-    }
-  }, [position, map]);
-
-  return position ? (
-    <Marker position={position}>
-      <Popup>Selected Location</Popup>
-    </Marker>
-  ) : null;
-};
-
-const SearchBar = ({ onSearch }) => {
-  const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const provider = new OpenStreetMapProvider();
-  const map = useMap();
-  const searchRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (searchRef.current && !searchRef.current.contains(event.target)) {
-        setShowSuggestions(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  
-
-  const handleInputChange = async (e) => {
-    const value = e.target.value;
-    setQuery(value);
-
-    if (value.length > 2) {
-      const results = await provider.search({ query: value });
-      setSuggestions(results.slice(0, 5));
-      setShowSuggestions(true);
-    } else {
-      setSuggestions([]);
-      setShowSuggestions(false);
-    }
-  };
-
-  const handleSuggestionClick = (suggestion) => {
-    const { x: lng, y: lat, label } = suggestion;
-    setQuery(label);
-    setShowSuggestions(false);
-    map.flyTo([lat, lng], 15);
-    onSearch({ lat, lng });
-  };
-
-  const handleSearchSubmit = async (e) => {
-    e.preventDefault();
-    if (query.length > 0) {
-      const results = await provider.search({ query });
-      if (results.length > 0) {
-        const { x: lng, y: lat } = results[0];
-        map.flyTo([lat, lng], 15);
-        onSearch({ lat, lng });
-      }
-    }
-    setShowSuggestions(false);
-  };
-
+const SearchBar = ({ onSearch, onAutocompleteLoadRef }) => {
+  const inputRef = useRef(null);
   return (
-    <div className="absolute top-4 left-4 z-[1000] w-72" ref={searchRef}>
-      <form onSubmit={handleSearchSubmit} className="relative">
-        <div className="flex shadow-sm">
-          <input
-            type="text"
-            value={query}
-            onChange={handleInputChange}
-            onFocus={() => setShowSuggestions(true)}
-            placeholder="Search for a location..."
-            className="flex-grow px-3 py-2 border border-slate-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 bg-indigo-600 text-white rounded-r-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            Search
-          </button>
-        </div>
-        {showSuggestions && suggestions.length > 0 && (
-          <ul className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg">
-            {suggestions.map((suggestion, index) => (
-              <li
-                key={index}
-                className="px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm"
-                onClick={() => handleSuggestionClick(suggestion)}
-              >
-                {suggestion.label}
-              </li>
-            ))}
-          </ul>
-        )}
-      </form>
+    <div className="absolute top-4 left-4 z-[1000] w-72">
+      <Autocomplete onLoad={(ac) => (onAutocompleteLoadRef.current = ac)} onPlaceChanged={() => {
+        const place = onAutocompleteLoadRef.current?.getPlace();
+        if (!place || !place.geometry || !place.geometry.location) return;
+        const lat = place.geometry.location.lat();
+        const lng = place.geometry.location.lng();
+        onSearch({ lat, lng });
+      }}>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder="Search for a location..."
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm bg-white"
+        />
+      </Autocomplete>
     </div>
   );
 };
@@ -285,6 +177,7 @@ const RouteVisits = () => {
   const [editId, setEditId] = useState(null);
   const [mapCenter, setMapCenter] = useState([51.505, -0.09]);
   const [selectedPosition, setSelectedPosition] = useState(null);
+  const autocompleteRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
@@ -711,20 +604,22 @@ const RouteVisits = () => {
               <div className="space-y-2 md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700">Location</label>
                 <div className="h-48 relative rounded-lg overflow-hidden border border-slate-300">
-                  <MapContainer
-                    center={mapCenter}
-                    zoom={13}
-                    style={{ height: "100%", width: "100%" }}
-                  >
-                    <TileLayer
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    />
-                    <LocationPicker
-                      onLocationSelect={handleLocationSelect}
-                      position={selectedPosition}
-                    />
-                  </MapContainer>
+                  <GoogleMapsProvider>
+                    <SearchBar onSearch={handleSearchResult} onAutocompleteLoadRef={autocompleteRef} />
+                    <GoogleMap
+                      center={{
+                        lat: Number.isFinite(parseFloat(mapCenter[0])) ? parseFloat(mapCenter[0]) : 25.2048,
+                        lng: Number.isFinite(parseFloat(mapCenter[1])) ? parseFloat(mapCenter[1]) : 55.2708,
+                      }}
+                      zoom={13}
+                      mapContainerStyle={defaultMapContainerStyle}
+                      onClick={(e) => handleLocationSelect({ lat: e.latLng.lat(), lng: e.latLng.lng() })}
+                    >
+                      {selectedPosition && Number.isFinite(parseFloat(selectedPosition[0])) && Number.isFinite(parseFloat(selectedPosition[1])) && (
+                        <Marker position={{ lat: parseFloat(selectedPosition[0]), lng: parseFloat(selectedPosition[1]) }} />
+                      )}
+                    </GoogleMap>
+                  </GoogleMapsProvider>
                 </div>
                 <div className="text-xs text-slate-500">
                   {routeVisit.lat && routeVisit.lon ? (

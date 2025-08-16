@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
-from .serializers import LoginSerializer, RegisterSerializer
+from .serializers import LoginSerializer, RegisterSerializer, SalesPersonSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 # Create your views here.
@@ -39,3 +39,9 @@ class LoginView(generics.GenericAPIView):
                 "role": user.role
             }
         })
+
+
+class SalesPersonListView(generics.ListAPIView):
+    queryset = User.objects.filter(role='salesperson')
+    serializer_class = SalesPersonSerializer
+    permission_classes = [IsAuthenticated]

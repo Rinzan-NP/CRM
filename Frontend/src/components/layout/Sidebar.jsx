@@ -25,6 +25,7 @@ const allNavItems = [
   { label: "Payments", to: "/transactions/payments", icon: FiDollarSign, roles: ["admin", "accountant"] },
   { label: "Routes", to: "/transactions/routes", icon: FiMap, roles: ["admin", "salesperson"] },
   { label: "Route Visits", to: "/transactions/route-visits", icon: FiMapPin, roles: ["admin", "salesperson"] },
+  { label: "Live Tracking", to: "/transactions/route-live-tracker", icon: FiActivity, roles: ["admin", "salesperson"] },
   { label: "Audit Logs", to: "/audit/audit-logs", icon: FiFileText, roles: ["admin"] },
   { label: "Reports", to: "/reports", icon: FiBarChart2, roles: ["admin"] },]
 
