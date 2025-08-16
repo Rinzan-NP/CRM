@@ -129,7 +129,7 @@ const CustomerInfoCard = ({ customer }) => {
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-gray-50 p-6 rounded-lg">
+      {/* <div className="bg-gray-50 p-6 rounded-lg">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
         <div className="flex flex-wrap gap-3">
           <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2">
@@ -156,7 +156,7 @@ const CustomerInfoCard = ({ customer }) => {
             </button>
           )}
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };

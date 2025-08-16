@@ -125,8 +125,8 @@ const CustomerTable = ({ customers, onEdit, onDelete, onView, onGeocode, onSetCo
 
           {/* Location Actions */}
           <div className="flex items-center gap-1">
-            {/* Geocode Button */}
-            {row.address && !row.location_verified && (
+            
+            {/* {row.address && !row.location_verified && (
               <button
                 onClick={() => handleGeocode(row)}
                 disabled={actionLoading}
@@ -137,7 +137,7 @@ const CustomerTable = ({ customers, onEdit, onDelete, onView, onGeocode, onSetCo
               </button>
             )}
 
-            {/* Set Coordinates Button */}
+            
             <button
               onClick={() => handleSetCoordinates(row)}
               disabled={actionLoading}
@@ -145,7 +145,7 @@ const CustomerTable = ({ customers, onEdit, onDelete, onView, onGeocode, onSetCo
               title="Edit Customer to Set Location"
             >
               <FiTarget className="h-4 w-4" />
-            </button>
+            </button> */}
           </div>
 
           {/* Delete Button */}
@@ -167,10 +167,10 @@ const CustomerTable = ({ customers, onEdit, onDelete, onView, onGeocode, onSetCo
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">Customers</h3>
           <div className="flex items-center gap-2 text-sm text-gray-600">
-            <span className="flex items-center gap-1">
+            {/* <span className="flex items-center gap-1">
               <FiCheckCircle className="h-4 w-4 text-green-500" />
               {customers.filter(c => c.location_verified).length} Verified
-            </span>
+            </span> */}
             <span className="flex items-center gap-1">
               <FiTarget className="h-4 w-4 text-blue-500" />
               {customers.filter(c => c.lat && c.lon && !c.location_verified).length} Coordinates Set

@@ -260,15 +260,7 @@ const SalesOrders = () => {
             accessor: "customer",
             cell: (row) => getCustomerName(row.customer),
         },
-        {
-            header: "Salesperson",
-            accessor: "salesperson",
-            cell: (row) => (
-                <span className="text-slate-600">
-                    {row.salesperson?.name || row.salesperson?.email || 'N/A'}
-                </span>
-            ),
-        },
+        
         {
             header: "Order Date",
             accessor: "order_date",
@@ -379,7 +371,7 @@ const SalesOrders = () => {
                         </ResponsiveContainer>
                     </ChartCard>
 
-                    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                    {/* <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
                         <h3 className="text-lg font-semibold text-slate-900 mb-4">Quick Actions</h3>
                         <div className="space-y-3">
                             <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors">
@@ -405,7 +397,7 @@ const SalesOrders = () => {
                                 </div>
                             </button>
                         </div>
-                    </div>
+                    </div> */}
                 </div>
 
                 {showForm && (

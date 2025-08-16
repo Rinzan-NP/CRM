@@ -152,6 +152,41 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Forbidden'}, status=403)
         return super().destroy(request, *args, **kwargs)
 
+    @action(detail=True, methods=['post'])
+    def refresh_outstanding(self, request, pk=None):
+        """Manually refresh the outstanding amount for an invoice"""
+        try:
+            invoice = self.get_object()
+            invoice.update_payment_status()
+            
+            return Response({
+                'message': 'Invoice outstanding amount refreshed',
+                'invoice_no': invoice.invoice_no,
+                'paid_amount': str(invoice.paid_amount),
+                'outstanding': str(invoice.outstanding),
+                'status': invoice.status
+            })
+        except Exception as e:
+            return Response({'detail': f'Error refreshing invoice: {str(e)}'}, status=500)
+
+    @action(detail=False, methods=['post'])
+    def refresh_all_outstanding(self, request):
+        """Refresh outstanding amounts for all invoices"""
+        try:
+            invoices = self.get_queryset()
+            updated_count = 0
+            
+            for invoice in invoices:
+                invoice.update_payment_status()
+                updated_count += 1
+            
+            return Response({
+                'message': f'Refreshed outstanding amounts for {updated_count} invoices',
+                'updated_count': updated_count
+            })
+        except Exception as e:
+            return Response({'detail': f'Error refreshing invoices: {str(e)}'}, status=500)
+
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
@@ -172,7 +207,25 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         if not self.has_write_access():
             return Response({'detail': 'Forbidden'}, status=403)
-        return super().create(request, *args, **kwargs)
+        
+        try:
+            response = super().create(request, *args, **kwargs)
+            
+            # Refresh the invoice data to get updated outstanding amount
+            payment = Payment.objects.get(id=response.data['id'])
+            invoice = payment.invoice
+            invoice.refresh_from_db()
+            
+            # Add updated invoice info to response
+            response.data['invoice_updated'] = {
+                'paid_amount': str(invoice.paid_amount),
+                'outstanding': str(invoice.outstanding),
+                'status': invoice.status
+            }
+            
+            return response
+        except Exception as e:
+            return Response({'detail': f'Error creating payment: {str(e)}'}, status=500)
 
     def update(self, request, *args, **kwargs):
         if not self.has_write_access():

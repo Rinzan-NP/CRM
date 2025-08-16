@@ -228,22 +228,36 @@ class Invoice(BaseModel):
     @property
     def outstanding(self):
         """Calculate outstanding amount"""
-        return max(self.amount_due - self.paid_amount, Decimal('0.00'))
+        return max(Decimal(self.amount_due) - Decimal(self.paid_amount), Decimal('0.00'))
 
     def update_payment_status(self):
         """Update paid_amount and status based on all payments"""
+        # Force refresh from database to get latest payments
+        self.refresh_from_db()
+        
         total_paid = self.payments.aggregate(
             total=models.Sum('amount')
         )['total'] or Decimal('0.00')
         
+        # Ensure we're working with Decimal objects
+        total_paid = Decimal(str(total_paid))
+        amount_due = Decimal(str(self.amount_due))
+        
         self.paid_amount = total_paid
         
-        if self.paid_amount >= self.amount_due:
+        # Update status based on payment amount
+        if total_paid >= amount_due:
             self.status = "paid"
-        elif self.paid_amount > 0:
+        elif total_paid > 0:
             self.status = "sent"  # Partially paid
+        else:
+            self.status = "sent"  # No payments yet
         
+        # Save the updated invoice
         self.save(update_fields=['paid_amount', 'status'])
+        
+        # Debug logging
+        print(f"Invoice {self.invoice_no}: amount_due={amount_due}, total_paid={total_paid}, status={self.status}")
         
     def save(self, *args, **kwargs):
         from datetime import datetime
@@ -271,10 +285,19 @@ class Payment(BaseModel):
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
+        old_amount = None
+        if not is_new:
+            try:
+                old_payment = Payment.objects.get(pk=self.pk)
+                old_amount = old_payment.amount
+            except Payment.DoesNotExist:
+                pass
+        
         super().save(*args, **kwargs)
-        # Only update invoice status after saving the payment
-        if is_new:  # Only for new payments, not updates
-            self.invoice.update_payment_status()
+        
+        # Always update invoice status after saving the payment
+        # This handles both new payments and updates
+        self.invoice.update_payment_status()
     
     def delete(self, *args, **kwargs):
         invoice = self.invoice

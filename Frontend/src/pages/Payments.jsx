@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPayments, createPayment, updatePayment, deletePayment } from '../redux/paymentsSlice';
 import { fetchInvoices } from '../redux/invoicesSlice';
-import { FiPlus, FiEdit, FiTrash2, FiDollarSign, FiCalendar, FiCreditCard } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiTrash2, FiDollarSign, FiCalendar, FiCreditCard, FiRefreshCw } from 'react-icons/fi';
 import Modal from '../components/Common/Modal';
 import Loader from '../components/Common/Loader';
 import EmptyState from '../components/Common/EmptyState';
@@ -32,6 +32,7 @@ const Payments = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
+  const [lastPaymentResult, setLastPaymentResult] = useState(null);
 
   useEffect(() => {
     dispatch(fetchPayments());
@@ -103,12 +104,18 @@ const Payments = () => {
         amount: parseFloat(formData.amount)
       };
 
+      let result;
       if (isEditing) {
-        await dispatch(updatePayment({ id: currentPaymentId, ...paymentData })).unwrap();
+        result = await dispatch(updatePayment({ id: currentPaymentId, ...paymentData })).unwrap();
         setToastMessage('Payment updated successfully');
       } else {
-        await dispatch(createPayment(paymentData)).unwrap();
+        result = await dispatch(createPayment(paymentData)).unwrap();
         setToastMessage('Payment created successfully');
+        
+        // Store the payment result to show updated invoice info
+        if (result.invoice_updated) {
+          setLastPaymentResult(result.invoice_updated);
+        }
       }
       
       // Refresh invoices to get updated outstanding amounts
@@ -164,9 +171,10 @@ const Payments = () => {
   };
 
   const getCustomerName = (invoice) => {
-    if (!invoice || !invoice.sales_order || !invoice.sales_order.customer) return 'N/A';
-    const customer = invoice.sales_order.customer;
-    return customer.name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim() || 'N/A';
+    console.log('====================================');
+    console.log(invoice);
+    console.log('====================================');
+    return invoice?.customer_name || 'N/A';
   };
 
   const formatCurrency = (value) => {
@@ -233,6 +241,14 @@ const Payments = () => {
               onChange={setSearchTerm}
               onClear={() => setSearchTerm("")}
             />,
+            <button
+              key="refresh"
+              onClick={() => dispatch(fetchInvoices())}
+              className="flex items-center justify-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+            >
+              <FiRefreshCw className="mr-2" />
+              Refresh Invoices
+            </button>,
             <button
               key="add"
               onClick={() => {

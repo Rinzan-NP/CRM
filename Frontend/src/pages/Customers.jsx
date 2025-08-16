@@ -209,7 +209,7 @@ const Customers = () => {
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-lg shadow-sm border">
+            {/* <div className="bg-white p-4 rounded-lg shadow-sm border">
               <div className="flex items-center">
                 <div className="p-2 bg-yellow-100 rounded-lg">
                   <FiMapPin className="h-6 w-6 text-yellow-600" />
@@ -221,7 +221,7 @@ const Customers = () => {
                   </p>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             <div className="bg-white p-4 rounded-lg shadow-sm border">
               <div className="flex items-center">

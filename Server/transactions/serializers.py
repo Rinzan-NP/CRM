@@ -90,21 +90,34 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
     
 
 class PaymentSerializer(serializers.ModelSerializer):
+    
+
     class Meta:
         model = Payment
-        fields = ['id', 'invoice', 'amount', 'paid_on', 'mode']
+        fields = ['id', 'invoice', 'amount', 'paid_on', 'mode', ]
+
+    
 
 class InvoiceSerializer(serializers.ModelSerializer):
     payments = PaymentSerializer(many=True, read_only=True)
     outstanding = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    customer_name = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Invoice
         fields = [
             'id', 'sales_order', 'invoice_no', 'issue_date', 'due_date',
-            'amount_due', 'paid_amount', 'outstanding', 'status', 'payments'
+            'amount_due', 'paid_amount', 'outstanding', 'status', 'payments', 'customer_name'
         ]
         read_only_fields = ['paid_amount', 'status', 'invoice_no']
+        
+    def get_customer_name(self, obj):
+        # Get customer name from related sales order
+        sales_order = getattr(obj, 'sales_order', None)
+        if sales_order and hasattr(sales_order, 'customer') and sales_order.customer:
+            customer = sales_order.customer
+            return customer.name or customer.email or f"{getattr(customer, 'first_name', '')} {getattr(customer, 'last_name', '')}".strip() or 'N/A'
+        return 'N/A'
 
     def create(self, validated_data):
         # Set amount_due from sales order if provided
