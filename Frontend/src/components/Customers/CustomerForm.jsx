@@ -1,4 +1,3 @@
-// src/components/Customers/CustomerForm.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { FiMapPin, FiNavigation, FiGlobe, FiTarget, FiCheckCircle, FiSearch, FiXCircle } from 'react-icons/fi';
 import FormField from '../ui/FormField';
@@ -98,17 +97,17 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
 
     setGeocoding(true);
     setError('');
-    
+
     try {
       if (mode === 'edit' && customer?.id) {
         // Use the geocoding API endpoint
         const response = await api.post(`/main/customers/${customer.id}/geocode_address/`);
         const updatedCustomer = response.data.customer;
-        
+
         // Round coordinates to 6 decimal places to match database precision
         const roundedLat = updatedCustomer.lat ? parseFloat(parseFloat(updatedCustomer.lat).toFixed(6)) : '';
         const roundedLon = updatedCustomer.lon ? parseFloat(parseFloat(updatedCustomer.lon).toFixed(6)) : '';
-        
+
         setFormData(prev => ({
           ...prev,
           lat: roundedLat,
@@ -118,7 +117,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
           country: updatedCustomer.country || '',
           postal_code: updatedCustomer.postal_code || ''
         }));
-        
+
         setLocationStatus('verified');
         setInfo('Address geocoded successfully! GPS coordinates and address details updated.');
       } else {
@@ -138,66 +137,81 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
   };
 
   const handleMapLocationSelect = async (lat, lon) => {
-    try {
-      // Reverse geocode the coordinates to get address details
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`
-      );
-      const data = await response.json();
-      
-      if (data.display_name) {
-        // Round coordinates to 6 decimal places to match database precision
-        const roundedLat = parseFloat(parseFloat(lat).toFixed(6));
-        const roundedLon = parseFloat(parseFloat(lon).toFixed(6));
-        
-        setFormData(prev => ({
-          ...prev,
-          lat: roundedLat,
-          lon: roundedLon,
-          address: data.display_name,
-          city: data.address?.city || data.address?.town || data.address?.village || '',
-          state: data.address?.state || data.address?.province || '',
-          country: data.address?.country || '',
-          postal_code: data.address?.postcode || ''
-        }));
-        
-        setLocationStatus('coordinates');
-        setShowMapPicker(false);
-        setInfo('Location selected from map! Address details automatically filled.');
-      } else {
-        // Fallback if reverse geocoding fails
-        // Round coordinates to 6 decimal places to match database precision
-        const roundedLat = parseFloat(parseFloat(lat).toFixed(6));
-        const roundedLon = parseFloat(parseFloat(lon).toFixed(6));
-        
-        setFormData(prev => ({
-          ...prev,
-          lat: roundedLat,
-          lon: roundedLon
-        }));
-        
-        setLocationStatus('coordinates');
-        setShowMapPicker(false);
-        setInfo('Location selected from map! You may need to manually enter address details.');
-      }
-    } catch (err) {
-      console.error('Reverse geocoding failed:', err);
-      // Fallback if reverse geocoding fails
-      // Round coordinates to 6 decimal places to match database precision
-      const roundedLat = parseFloat(parseFloat(lat).toFixed(6));
-      const roundedLon = parseFloat(parseFloat(lon).toFixed(6));
-      
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+  try {
+    // Try Google Maps Geocoding API first
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${apiKey}`
+    );
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    const data = await response.json();
+    if (data.results && data.results.length > 0) {
+      const address = data.results[0].formatted_address;
+      const addressComponents = data.results[0].address_components;
+      const city = addressComponents.find(c => c.types.includes('locality'))?.long_name || '';
+      const state = addressComponents.find(c => c.types.includes('administrative_area_level_1'))?.long_name || '';
+      const country = addressComponents.find(c => c.types.includes('country'))?.long_name || '';
+      const postalCode = addressComponents.find(c => c.types.includes('postal_code'))?.long_name || '';
+
       setFormData(prev => ({
         ...prev,
-        lat: roundedLat,
-        lon: roundedLon
+        address,
+        city,
+        state,
+        country,
+        postal_code: postalCode,
+        lat: parseFloat(lat.toFixed(6)),
+        lon: parseFloat(lon.toFixed(6))
       }));
-      
       setLocationStatus('coordinates');
       setShowMapPicker(false);
-      setInfo('Location selected from map! You may need to manually enter address details.');
+      setInfo('Location selected from map! Address details automatically filled.');
+      return;
     }
-  };
+  } catch (error) {
+    console.error('Google Maps API fetch error:', error);
+  }
+
+  // Fallback to Nominatim if Google Maps API fails
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`
+    );
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    const data = await response.json();
+    if (data.display_name) {
+      const address = data.display_name;
+      const city = data.address.city || '';
+      const state = data.address.state || '';
+      const country = data.address.country || '';
+      const postalCode = data.address.postalcode || '';
+
+      setFormData(prev => ({
+        ...prev,
+        address,
+        city,
+        state,
+        country,
+        postal_code: postalCode,
+        lat: parseFloat(lat.toFixed(6)),
+        lon: parseFloat(lon.toFixed(6))
+      }));
+      setLocationStatus('coordinates');
+      setShowMapPicker(false);
+      setInfo('Location selected from map! Address details automatically filled.');
+    } else {
+      throw new Error('No address found for the given coordinates');
+    }
+  } catch (error) {
+    console.error('Nominatim API fetch error:', error);
+    setInfo('Location selected from map! You may need to manually enter address details.');
+  }
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -206,30 +220,30 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
 
     try {
       const submitData = { ...formData };
-      
+
       // Convert numeric fields
       if (submitData.credit_limit) {
         submitData.credit_limit = parseFloat(submitData.credit_limit);
       }
-      
+
       // Handle coordinates - ensure they are valid numbers or null
       if (submitData.lat && submitData.lon) {
         const lat = parseFloat(submitData.lat);
         const lon = parseFloat(submitData.lon);
-        
+
         // Validate coordinate ranges
         if (isNaN(lat) || isNaN(lon)) {
           throw new Error('Invalid coordinates provided');
         }
-        
+
         if (lat < -90 || lat > 90) {
           throw new Error('Latitude must be between -90 and 90');
         }
-        
+
         if (lon < -180 || lon > 180) {
           throw new Error('Longitude must be between -180 and 180');
         }
-        
+
         // Round coordinates to 6 decimal places to match database precision
         submitData.lat = parseFloat(lat.toFixed(6));
         submitData.lon = parseFloat(lon.toFixed(6));
@@ -310,7 +324,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
               name="phone"
               value={formData.phone}
               onChange={handleInputChange}
-              className="w-full px-3 py-2 border  border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </FormField>
 
@@ -365,7 +379,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
         </div>
 
         {/* Location Selection Buttons */}
-        <div className="mb-4 flex gap-3">
+        {/* <div className="mb-4 flex gap-3">
           <Button
             type="button"
             onClick={() => setShowMapPicker(true)}
@@ -384,7 +398,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
             <FiNavigation />
             {geocoding ? 'Processing...' : '📍 Get Coordinates'}
           </Button>
-        </div>
+        </div> */}
 
         {/* GPS Coordinates Display (Read-only) */}
         {(formData.lat && formData.lon) && (
@@ -394,8 +408,8 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
               <span className="text-sm font-medium text-green-800">GPS Coordinates Set</span>
             </div>
             <div className="text-sm text-green-700">
-              {/* <div>Latitude: {formData.lat}</div>
-              <div>Longitude: {formData.lon}</div> */}
+              {formData.lat && <div>Latitude: {formData.lat}</div>}
+              {formData.lon && <div>Longitude: {formData.lon}</div>}
               {formData.city && <div>City: {formData.city}</div>}
               {formData.state && <div>State: {formData.state}</div>}
               {formData.country && <div>Country: {formData.country}</div>}
@@ -491,7 +505,5 @@ const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
     </form>
   );
 };
-
-
 
 export default CustomerForm;

@@ -44,12 +44,47 @@ const AuditLogs = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {auditLogs.map((log) => (
                 <tr key={log.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">{log.user}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{log.action}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{log.model_name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{log.object_id}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{new Date(log.timestamp).toLocaleString()}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{JSON.stringify(log.changes)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {log.user_email || 'System'}
+                      </div>
+                      {log.user_role && (
+                        <div className="text-sm text-gray-500">
+                          {log.user_role}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      log.action === 'CREATE' ? 'bg-green-100 text-green-800' :
+                      log.action === 'UPDATE' ? 'bg-blue-100 text-blue-800' :
+                      log.action === 'DELETE' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {log.action}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {log.model_name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {log.object_id}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(log.timestamp).toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    <details className="cursor-pointer">
+                      <summary className="text-blue-600 hover:text-blue-800">
+                        View Changes
+                      </summary>
+                      <pre className="mt-2 text-xs bg-gray-50 p-2 rounded max-w-xs overflow-auto">
+                        {JSON.stringify(log.changes, null, 2)}
+                      </pre>
+                    </details>
+                  </td>
                 </tr>
               ))}
             </tbody>
