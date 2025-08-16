@@ -1,6 +1,6 @@
 // src/pages/CustomerDetail.jsx
 import React, { useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
   fetchCustomerSummary, 
@@ -14,7 +14,8 @@ import {
   FiClock, 
   FiCheckCircle, 
   FiXCircle,
-  FiAlertCircle 
+  FiAlertCircle,
+  FiArrowLeft 
 } from 'react-icons/fi';
 import PageHeader from '../components/layout/PageHeader';
 import StatsCard from '../components/ui/StatsCard';
@@ -25,6 +26,7 @@ import CustomerInfoCard from '../components/Customers/CustomerInfoCard';
 
 const CustomerDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const {
     currentCustomer,
@@ -64,12 +66,20 @@ const CustomerDetail = () => {
           <p className="text-gray-600 mb-4">
             {typeof error === 'string' ? error : error?.detail || 'Something went wrong'}
           </p>
-          <button 
-            onClick={() => dispatch(fetchCustomerSummary(id))}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          >
-            Try Again
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => dispatch(fetchCustomerSummary(id))}
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              Try Again
+            </button>
+            <button 
+              onClick={() => navigate('/customers')}
+              className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
+            >
+              Back to Customers
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -77,7 +87,16 @@ const CustomerDetail = () => {
   
   // No customer found
   if (!currentCustomer && !loading) {
-    return <EmptyState title="Customer not found" description="The requested customer could not be found." />;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <EmptyState 
+          title="Customer not found" 
+          description="The requested customer could not be found." 
+          actionText="Back to Customers"
+          onAction={() => navigate('/customers')}
+        />
+      </div>
+    );
   }
 
   // Calculate stats - use summary data if available, otherwise calculate from arrays
@@ -205,15 +224,30 @@ const CustomerDetail = () => {
       <div className="max-w-7xl mx-auto space-y-6">
         <PageHeader
           title={currentCustomer?.name || 'Customer Details'}
-          subtitle="Customer details and transactions"
+          subtitle="Comprehensive customer information, transactions, and analytics"
           breadcrumbs={[
             { name: 'Customers', href: '/customers' },
             { name: currentCustomer?.name || 'Customer', href: `/customers/${id}` }
           ]}
+          actions={[
+            <button
+              key="back"
+              onClick={() => navigate('/customers')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+            >
+              <FiArrowLeft className="h-4 w-4" />
+              Back to Customers
+            </button>
+          ]}
         />
 
-        {/* Customer Info */}
-        {currentCustomer && <CustomerInfoCard customer={currentCustomer} />}
+        {/* Customer Info - Hide View More button when on detail page */}
+        {currentCustomer && (
+          <CustomerInfoCard 
+            customer={currentCustomer} 
+            showViewMore={false} 
+          />
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -253,7 +287,7 @@ const CustomerDetail = () => {
             <DataTable 
               data={ordersArray} 
               columns={salesOrderColumns} 
-              pageSize={5}
+              pageSize={10}
               showPagination={true}
             />
           ) : (
@@ -275,7 +309,7 @@ const CustomerDetail = () => {
             <DataTable 
               data={invoicesArray} 
               columns={invoiceColumns} 
-              pageSize={5}
+              pageSize={10}
               showPagination={true}
             />
           ) : (

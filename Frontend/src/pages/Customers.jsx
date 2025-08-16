@@ -209,20 +209,6 @@ const Customers = () => {
               </div>
             </div>
 
-            {/* <div className="bg-white p-4 rounded-lg shadow-sm border">
-              <div className="flex items-center">
-                <div className="p-2 bg-yellow-100 rounded-lg">
-                  <FiMapPin className="h-6 w-6 text-yellow-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Verified Locations</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {customers.filter(c => c.location_verified).length}
-                  </p>
-                </div>
-              </div>
-            </div> */}
-
             <div className="bg-white p-4 rounded-lg shadow-sm border">
               <div className="flex items-center">
                 <div className="p-2 bg-gray-100 rounded-lg">
@@ -274,14 +260,17 @@ const Customers = () => {
         />
       </Modal>
 
-      {/* Customer View Modal */}
+      {/* Customer View Modal - Modified to show View More button */}
       <Modal
         isOpen={!!selectedCustomer}
         onClose={closeView}
-        title="Customer Details"
+        title={`${selectedCustomer?.name || 'Customer'} - Quick View`}
         size="4xl"
       >
-        <CustomerInfoCard customer={selectedCustomer} />
+        <CustomerInfoCard 
+          customer={selectedCustomer} 
+          showViewMore={true} 
+        />
       </Modal>
 
       {/* Status Messages */}
