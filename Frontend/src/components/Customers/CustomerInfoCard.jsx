@@ -1,8 +1,11 @@
 // src/components/Customers/CustomerInfoCard.jsx
 import React from 'react';
-import { FiMapPin, FiMail, FiPhone, FiDollarSign, FiCalendar, FiCheckCircle, FiTarget } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import { FiMapPin, FiMail, FiPhone, FiDollarSign, FiCalendar, FiCheckCircle, FiTarget, FiExternalLink } from 'react-icons/fi';
 
-const CustomerInfoCard = ({ customer }) => {
+const CustomerInfoCard = ({ customer, showViewMore = true }) => {
+  const navigate = useNavigate();
+
   if (!customer) return null;
 
   const getLocationStatus = () => {
@@ -17,8 +20,25 @@ const CustomerInfoCard = ({ customer }) => {
 
   const locationStatus = getLocationStatus();
 
+  const handleViewMore = () => {
+    navigate(`/customers/${customer.id}`);
+  };
+
   return (
     <div className="space-y-6">
+      {/* View More Button - Only show when in modal */}
+      {showViewMore && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleViewMore}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+          >
+            <FiExternalLink className="h-4 w-4" />
+            View Full Details
+          </button>
+        </div>
+      )}
+
       {/* Basic Information */}
       <div className="bg-gray-50 p-6 rounded-lg">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
@@ -127,36 +147,6 @@ const CustomerInfoCard = ({ customer }) => {
           </div>
         )}
       </div>
-
-      {/* Quick Actions */}
-      {/* <div className="bg-gray-50 p-6 rounded-lg">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        <div className="flex flex-wrap gap-3">
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2">
-            <FiMail className="h-4 w-4" />
-            Send Email
-          </button>
-          
-          {customer.phone && (
-            <button className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center gap-2">
-              <FiPhone className="h-4 w-4" />
-              Call Customer
-            </button>
-          )}
-          
-          <button className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors flex items-center gap-2">
-            <FiDollarSign className="h-4 w-4" />
-            View Orders
-          </button>
-          
-          {customer.lat && customer.lon && (
-            <button className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors flex items-center gap-2">
-              <FiMapPin className="h-4 w-4" />
-              View on Map
-            </button>
-          )}
-        </div>
-      </div> */}
     </div>
   );
 };

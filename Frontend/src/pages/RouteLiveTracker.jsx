@@ -9,7 +9,6 @@ import RouteOptimizer from '../components/Dashboard/RouteOptimizer';
 import CustomerVisitLogger from '../components/Customers/CustomerVisitLogger';
 import { GoogleMapsProvider, GoogleMap, Marker, Polyline, Circle, InfoWindow, defaultMapContainerStyle } from '../components/Common/GoogleMapWrapper';
 
-
 const RouteLiveTracker = () => {
   const [selectedRouteId, setSelectedRouteId] = useState('');
   const [routes, setRoutes] = useState([]);
@@ -24,13 +23,13 @@ const RouteLiveTracker = () => {
   const [showActualRoute, setShowActualRoute] = useState(true);
   const [showRealTime, setShowRealTime] = useState(true);
   const [currentLocation, setCurrentLocation] = useState(null);
-  const [lastPingLocation, setLastPingLocation] = useState(null);
+  const [lastConfirmedLocation, setLastConfirmedLocation] = useState(null);
   
   const watchIdRef = useRef(null);
   const mapRef = useRef(null);
 
-  // Calculate distance between two coordinates using Haversine formula
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  // Improved distance calculation using Haversine formula
+  const calculateDistance = useCallback((lat1, lon1, lat2, lon2) => {
     const R = 6371e3; // Earth's radius in meters
     const φ1 = lat1 * Math.PI / 180;
     const φ2 = lat2 * Math.PI / 180;
@@ -43,7 +42,34 @@ const RouteLiveTracker = () => {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return R * c; // Distance in meters
-  };
+  }, []);
+
+  // Smart movement detection based on GPS accuracy
+  const hasMovedSignificantly = useCallback((lastLocation, newLocation, accuracy) => {
+    if (!lastLocation) return true;
+    
+    const distance = calculateDistance(
+      lastLocation.lat, lastLocation.lon,
+      newLocation.lat, newLocation.lon
+    );
+    
+    // Dynamic threshold based on GPS accuracy
+    const accuracyMeters = accuracy || 25; // Default to 25m if no accuracy provided
+    const movementThreshold = Math.max(
+      20,                          // Minimum 20 meters to avoid GPS noise
+      accuracyMeters * 2          // 2x the GPS accuracy for reliable detection
+    );
+    
+    console.log(`Distance: ${distance.toFixed(2)}m, Threshold: ${movementThreshold.toFixed(2)}m, Accuracy: ${accuracyMeters}m`);
+    
+    return distance > movementThreshold;
+  }, [calculateDistance]);
+
+  // Check if GPS reading is accurate enough
+  const isAccurateEnough = useCallback((accuracy) => {
+    const maxAccuracy = 50; // Reject readings worse than 50m accuracy
+    return !accuracy || accuracy <= maxAccuracy;
+  }, []);
 
   // Fetch routes on component mount
   useEffect(() => {
@@ -94,7 +120,7 @@ const RouteLiveTracker = () => {
     }
   }, [selectedRouteId]);
 
-  // Start route tracking
+  // Start route tracking with improved GPS settings and movement detection
   const startTracking = useCallback(async () => {
     if (!selectedRouteId) {
       setError('Please select a route first');
@@ -129,42 +155,43 @@ const RouteLiveTracker = () => {
         lon: position.coords.longitude
       };
       
-      // Check if we've actually moved significantly (more than 10 meters)
-      const hasMovedSignificantly = (lastLocation, newLocation, accuracy) => {
-          if (!lastLocation) return true;
-          
-          const distance = calculateDistance(
-            lastLocation.lat, lastLocation.lon,
-            newLocation.lat, newLocation.lon
-          );
-          
-          const accuracyMeters = accuracy || 25;
-          const movementThreshold = Math.max(20, accuracyMeters * 2);
-          
-          return distance > movementThreshold;
-        };
+      const accuracy = position.coords.accuracy;
 
-        const isAccurateEnough = (accuracy) => {
-          return !accuracy || accuracy <= 50; 
-        };
+      // Filter out inaccurate readings
+      if (!isAccurateEnough(accuracy)) {
+        setInfo(`Location skipped - poor GPS accuracy: ${accuracy?.toFixed(1)}m`);
+        return;
+      }
 
-      if (hasMovedSignificantly && isAccurateEnough(position.coords.accuracy)) {
+      // Clear any accuracy errors
+      if (error.includes('accuracy')) {
+        setError('');
+      }
+
+      // Always update current location for display
+      setCurrentLocation(newLocation);
+
+      // Check for significant movement before sending ping
+      const hasMoved = hasMovedSignificantly(lastConfirmedLocation, newLocation, accuracy);
+      
+      if (hasMoved) {
         const payload = {
           route: selectedRouteId,
           lat: position.coords.latitude,
           lon: position.coords.longitude,
-          accuracy_meters: position.coords.accuracy ? Math.round(position.coords.accuracy * 1000000) / 1000000 : null,
+          accuracy_meters: accuracy ? Math.round(accuracy * 1000000) / 1000000 : null,
           speed_mps: position.coords.speed ? Math.round(position.coords.speed * 10000) / 10000 : null,
           heading_degrees: position.coords.heading ? Math.round(position.coords.heading * 100) / 100 : null,
         };
         
-        // Update current location for visit logging
-        setCurrentLocation(newLocation);
-        setLastPingLocation(newLocation);
+        // Update confirmed location
+        setLastConfirmedLocation(newLocation);
         
         try {
           const response = await api.post('/transactions/route-location-pings/', payload);
-          setInfo('Location updated - movement detected');
+          const distance = lastConfirmedLocation ? 
+            calculateDistance(lastConfirmedLocation.lat, lastConfirmedLocation.lon, newLocation.lat, newLocation.lon) : 0;
+          setInfo(`Location updated - moved ${distance.toFixed(1)}m`);
           
           // Update pings state for real-time display
           setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
@@ -175,9 +202,7 @@ const RouteLiveTracker = () => {
           setError(e?.response?.data?.detail || e?.response?.data || 'Failed to send location');
         }
       } else {
-        // Just update current location without sending ping
-        setCurrentLocation(newLocation);
-        setInfo('Location updated - no significant movement');
+        setInfo(`Stationary - accuracy: ${accuracy?.toFixed(1)}m`);
       }
     }, (err) => {
       setIsTracking(false);
@@ -194,14 +219,14 @@ const RouteLiveTracker = () => {
         default:
           setError(err.message || 'Unknown location error');
       }
-    }, {
-  enableHighAccuracy: true,     
-  timeout: 30000,               
-  maximumAge: 60000           
-});
+    }, { 
+      enableHighAccuracy: true,     // Use high accuracy for better precision
+      timeout: 15000,               // 15 second timeout for responsive updates
+      maximumAge: 60000            // 1 minute maximum age for fresher readings
+    });
     
     watchIdRef.current = id;
-  }, [selectedRouteId, fetchRouteSummary, lastPingLocation]);
+  }, [selectedRouteId, fetchRouteSummary, lastConfirmedLocation, hasMovedSignificantly, isAccurateEnough, calculateDistance, error]);
 
   // Stop route tracking
   const stopTracking = useCallback(async () => {
@@ -231,16 +256,19 @@ const RouteLiveTracker = () => {
     if (selectedRouteId) {
       fetchRoutePings();
       fetchRouteSummary();
+      // Reset location states when switching routes
+      setLastConfirmedLocation(null);
+      setCurrentLocation(null);
     }
   }, [selectedRouteId, fetchRoutePings, fetchRouteSummary]);
 
-  // Set up polling for real-time updates - changed to 5 minutes to reduce unnecessary API calls
+  // Set up polling for real-time updates
   useEffect(() => {
     if (isTracking && selectedRouteId) {
       const interval = setInterval(() => {
         fetchRoutePings();
         fetchRouteSummary();
-      }, 300000); // Poll every 5 minutes (300 seconds) - reduces API calls when stationary
+      }, 300000); // Poll every 5 minutes
       
       return () => clearInterval(interval);
     }
@@ -251,27 +279,40 @@ const RouteLiveTracker = () => {
     routes.find(r => r.id === selectedRouteId), [routes, selectedRouteId]
   );
 
-  // Prepare map data
+  // Prepare map data with improved center calculation
   const mapData = useMemo(() => {
-    if (!selectedRoute) return { center: [0, 0], zoom: 2 };
+    if (!selectedRoute) return { center: [25.2048, 55.2708], zoom: 10 }; // Default to Dubai
     
-    // Calculate map center from route visits or pings
-    let center = [0, 0];
-    let zoom = 2;
+    let center = [25.2048, 55.2708];
+    let zoom = 10;
     
     if (pings.length > 0) {
-      const lats = pings.map(p => p.lat);
-      const lons = pings.map(p => p.lon);
-      center = [
-        (Math.min(...lats) + Math.max(...lats)) / 2,
-        (Math.min(...lons) + Math.max(...lons)) / 2
-      ];
-      zoom = 13;
+      const validPings = pings.filter(p => p.lat && p.lon && !isNaN(p.lat) && !isNaN(p.lon));
+      if (validPings.length > 0) {
+        const lats = validPings.map(p => parseFloat(p.lat));
+        const lons = validPings.map(p => parseFloat(p.lon));
+        const minLat = Math.min(...lats);
+        const maxLat = Math.max(...lats);
+        const minLon = Math.min(...lons);
+        const maxLon = Math.max(...lons);
+        
+        center = [(minLat + maxLat) / 2, (minLon + maxLon) / 2];
+        
+        // Calculate zoom based on bounds
+        const latDiff = maxLat - minLat;
+        const lonDiff = maxLon - minLon;
+        const maxDiff = Math.max(latDiff, lonDiff);
+        
+        if (maxDiff < 0.01) zoom = 15;
+        else if (maxDiff < 0.05) zoom = 13;
+        else if (maxDiff < 0.1) zoom = 11;
+        else zoom = 9;
+      }
     } else if (selectedRoute.visits && selectedRoute.visits.length > 0) {
-      const visitsWithCoords = selectedRoute.visits.filter(v => v.lat && v.lon);
+      const visitsWithCoords = selectedRoute.visits.filter(v => v.lat && v.lon && !isNaN(v.lat) && !isNaN(v.lon));
       if (visitsWithCoords.length > 0) {
-        const lats = visitsWithCoords.map(v => v.lat);
-        const lons = visitsWithCoords.map(v => v.lon);
+        const lats = visitsWithCoords.map(v => parseFloat(v.lat));
+        const lons = visitsWithCoords.map(v => parseFloat(v.lon));
         center = [
           (Math.min(...lats) + Math.max(...lats)) / 2,
           (Math.min(...lons) + Math.max(...lons)) / 2
@@ -292,7 +333,7 @@ const RouteLiveTracker = () => {
       <div className="max-w-7xl mx-auto space-y-6">
         <PageHeader
           title="Route Live Tracker"
-          subtitle="Advanced GPS tracking with route optimization and real-time visualization (movement-based updates)"
+          subtitle="Advanced GPS tracking with smart movement detection and real-time optimization analytics"
         />
 
         {/* Controls Panel */}
@@ -329,7 +370,7 @@ const RouteLiveTracker = () => {
                     disabled={!selectedRouteId}
                     className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
                   >
-                    <FiActivity /> Start Tracking
+                    <FiActivity /> Start Smart Tracking
                   </button>
                 ) : (
                   <>
@@ -339,14 +380,62 @@ const RouteLiveTracker = () => {
                     >
                       <FiActivity /> Stop Tracking
                     </button>
-                    
+                    <button
+                      onClick={async () => {
+                        if (navigator.geolocation) {
+                          navigator.geolocation.getCurrentPosition(async (position) => {
+                            const accuracy = position.coords.accuracy;
+                            
+                            if (!isAccurateEnough(accuracy)) {
+                              setError(`Cannot send manual ping - GPS accuracy too poor: ${accuracy?.toFixed(1)}m`);
+                              return;
+                            }
+
+                            const payload = {
+                              route: selectedRouteId,
+                              lat: position.coords.latitude,
+                              lon: position.coords.longitude,
+                              accuracy_meters: accuracy ? Math.round(accuracy * 1000000) / 1000000 : null,
+                              speed_mps: position.coords.speed ? Math.round(position.coords.speed * 10000) / 10000 : null,
+                              heading_degrees: position.coords.heading ? Math.round(position.coords.heading * 100) / 100 : null,
+                            };
+                            
+                            try {
+                              const response = await api.post('/transactions/route-location-pings/', payload);
+                              setInfo(`Manual location ping sent (accuracy: ${accuracy?.toFixed(1)}m)`);
+                              setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
+                              setLastConfirmedLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
+                              fetchRouteSummary();
+                            } catch (e) {
+                              setError('Failed to send manual ping');
+                            }
+                          }, (err) => {
+                            setError('Failed to get current location for manual ping');
+                          }, {
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 30000
+                          });
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+                    >
+                      📍 Manual Ping
+                    </button>
                   </>
                 )}
               </div>
               {isTracking && (
-                <p className="mt-2 text-sm text-gray-600">
-                  📍 GPS tracking active (updates when movement detected)
-                </p>
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm text-gray-600">
+                    🟢 Smart GPS tracking active
+                  </p>
+                  {currentLocation && lastConfirmedLocation && (
+                    <p className="text-xs text-gray-500">
+                      Threshold: {Math.max(20, (currentLocation.accuracy || 25) * 2).toFixed(0)}m
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 
@@ -400,7 +489,7 @@ const RouteLiveTracker = () => {
                 {showPlannedRoute && selectedRoute?.visits && selectedRoute.visits.length > 1 && (
                   <Polyline
                     path={selectedRoute.visits
-                      .filter(v => v.lat && v.lon)
+                      .filter(v => v.lat && v.lon && !isNaN(v.lat) && !isNaN(v.lon))
                       .map(v => ({ lat: parseFloat(v.lat), lng: parseFloat(v.lon) }))}
                     options={{ strokeColor: 'blue', strokeOpacity: 0.7, strokeWeight: 3 }}
                   />
@@ -408,24 +497,53 @@ const RouteLiveTracker = () => {
 
                 {showActualRoute && pings.length > 1 && (
                   <Polyline
-                    path={pings.map(p => ({ lat: parseFloat(p.lat), lng: parseFloat(p.lon) }))}
+                    path={pings
+                      .filter(p => p.lat && p.lon && !isNaN(p.lat) && !isNaN(p.lon))
+                      .map(p => ({ lat: parseFloat(p.lat), lng: parseFloat(p.lon) }))}
                     options={{ strokeColor: 'red', strokeOpacity: 0.8, strokeWeight: 4 }}
                   />
                 )}
 
                 {showPlannedRoute && selectedRoute?.visits && selectedRoute.visits.map((visit, index) => (
-                  visit.lat && visit.lon ? (
-                    <Marker key={`visit-${visit.id}`} position={{ lat: parseFloat(visit.lat), lng: parseFloat(visit.lon) }} />
+                  visit.lat && visit.lon && !isNaN(visit.lat) && !isNaN(visit.lon) ? (
+                    <Marker 
+                      key={`visit-${visit.id}`} 
+                      position={{ lat: parseFloat(visit.lat), lng: parseFloat(visit.lon) }}
+                      icon={{
+                        path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
+                        fillColor: 'blue',
+                        fillOpacity: 0.8,
+                        strokeWeight: 2,
+                        strokeColor: 'darkblue',
+                        scale: 1
+                      }}
+                    />
                   ) : null
                 ))}
 
                 {showActualRoute && pings.map((ping, index) => (
-                  <Marker key={`ping-${ping.id || index}`} position={{ lat: parseFloat(ping.lat), lng: parseFloat(ping.lon) }} />
+                  ping.lat && ping.lon && !isNaN(ping.lat) && !isNaN(ping.lon) ? (
+                    <Marker 
+                      key={`ping-${ping.id || index}`} 
+                      position={{ lat: parseFloat(ping.lat), lng: parseFloat(ping.lon) }}
+                      icon={{
+                        path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
+                        fillColor: 'red',
+                        fillOpacity: 0.8,
+                        strokeWeight: 2,
+                        strokeColor: 'darkred',
+                        scale: 0.8
+                      }}
+                    />
+                  ) : null
                 ))}
 
                 {showRealTime && isTracking && pings.length > 0 && (
                   <Circle
-                    center={{ lat: parseFloat(pings[pings.length - 1].lat), lng: parseFloat(pings[pings.length - 1].lon) }}
+                    center={{ 
+                      lat: parseFloat(pings[pings.length - 1].lat), 
+                      lng: parseFloat(pings[pings.length - 1].lon) 
+                    }}
                     radius={50}
                     options={{ strokeColor: '#10B981', fillColor: '#10B981', fillOpacity: 0.3 }}
                   />
@@ -448,28 +566,46 @@ const RouteLiveTracker = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center p-3 bg-blue-50 rounded-lg">
                     <div className="text-2xl font-bold text-blue-600">
-                      {routeSummary.total_distance_km}
+                      {routeSummary.total_distance_km} km
                     </div>
-                    <div className="text-sm text-gray-600">Total Distance (km)</div>
+                    <div className="text-sm text-gray-600">Total Distance</div>
                   </div>
                   <div className="text-center p-3 bg-green-50 rounded-lg">
                     <div className="text-2xl font-bold text-green-600">
-                      {routeSummary.total_time_hours}
+                      {routeSummary.moving_time_hours || routeSummary.total_time_hours}h
                     </div>
-                    <div className="text-sm text-gray-600">Total Time (hours)</div>
+                    <div className="text-sm text-gray-600">
+                      {routeSummary.moving_time_hours ? 'Moving Time' : 'Total Time'}
+                    </div>
                   </div>
                   <div className="text-center p-3 bg-purple-50 rounded-lg">
                     <div className="text-2xl font-bold text-purple-600">
-                      {routeSummary.average_speed_kmh}
+                      {routeSummary.average_speed_kmh} km/h
                     </div>
-                    <div className="text-sm text-gray-600">Avg Speed (km/h)</div>
+                    <div className="text-sm text-gray-600">Average Speed</div>
                   </div>
                   <div className="text-center p-3 bg-orange-50 rounded-lg">
                     <div className="text-2xl font-bold text-orange-600">
                       {routeSummary.ping_count}
                     </div>
-                    <div className="text-sm text-gray-600">GPS Pings</div>
+                    <div className="text-sm text-gray-600">GPS Points</div>
                   </div>
+                  {routeSummary.max_speed_kmh && (
+                    <div className="text-center p-3 bg-red-50 rounded-lg">
+                      <div className="text-2xl font-bold text-red-600">
+                        {routeSummary.max_speed_kmh} km/h
+                      </div>
+                      <div className="text-sm text-gray-600">Max Speed</div>
+                    </div>
+                  )}
+                  {routeSummary.movement_efficiency_percent && (
+                    <div className="text-center p-3 bg-indigo-50 rounded-lg">
+                      <div className="text-2xl font-bold text-indigo-600">
+                        {routeSummary.movement_efficiency_percent}%
+                      </div>
+                      <div className="text-sm text-gray-600">Movement Efficiency</div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -492,7 +628,7 @@ const RouteLiveTracker = () => {
                     </span>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium">Deviation</span>
+                    <span className="text-sm font-medium">Distance Deviation</span>
                     <span className="font-bold text-red-600">
                       +{optimizationMetrics.deviation_km} km
                     </span>
@@ -504,12 +640,13 @@ const RouteLiveTracker = () => {
                     </span>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium">Time Efficiency</span>
+                    <span className="text-sm font-medium">Efficiency Rating</span>
                     <span className={`font-bold ${
-                      optimizationMetrics.time_efficiency === 'High' ? 'text-green-600' :
-                      optimizationMetrics.time_efficiency === 'Medium' ? 'text-yellow-600' : 'text-red-600'
+                      optimizationMetrics.efficiency_rating === 'Excellent' ? 'text-green-600' :
+                      optimizationMetrics.efficiency_rating === 'Good' ? 'text-blue-600' :
+                      optimizationMetrics.efficiency_rating === 'Fair' ? 'text-yellow-600' : 'text-red-600'
                     }`}>
-                      {optimizationMetrics.time_efficiency}
+                      {optimizationMetrics.efficiency_rating || optimizationMetrics.time_efficiency}
                     </span>
                   </div>
                 </div>

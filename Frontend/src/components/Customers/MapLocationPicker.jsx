@@ -133,31 +133,31 @@ const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
         </div>
 
         {/* Selected Location Display */}
-        {selectedLocation && (
-          <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
-            <div className="flex items-center gap-2 mb-3">
-              <FiTarget className="h-5 w-5 text-green-600" />
-              <span className="text-lg font-medium text-green-800">Selected Location</span>
-            </div>
+        {/* {selectedLocation && (
+          // <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
+          //   <div className="flex items-center gap-2 mb-3">
+          //     <FiTarget className="h-5 w-5 text-green-600" />
+          //     <span className="text-lg font-medium text-green-800">Selected Location</span>
+          //   </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="font-medium text-green-700">Latitude:</span>
-                <span className="ml-2 text-green-600 font-mono">{selectedLocation.lat.toFixed(6)}</span>
-              </div>
-              <div>
-                <span className="font-medium text-green-700">Longitude:</span>
-                <span className="ml-2 text-green-600 font-mono">{selectedLocation.lng.toFixed(6)}</span>
-              </div>
-            </div>
+          //   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          //     <div>
+          //       <span className="font-medium text-green-700">Latitude:</span>
+          //       <span className="ml-2 text-green-600 font-mono">{selectedLocation.lat.toFixed(6)}</span>
+          //     </div>
+          //     <div>
+          //       <span className="font-medium text-green-700">Longitude:</span>
+          //       <span className="ml-2 text-green-600 font-mono">{selectedLocation.lng.toFixed(6)}</span>
+          //     </div>
+          //   </div>
             
-            <div className="mt-3 p-2 bg-white rounded border border-green-200">
-              <span className="text-xs text-green-600">
-                Coordinates will be automatically used to populate address fields
-              </span>
-            </div>
-          </div>
-        )}
+          //   <div className="mt-3 p-2 bg-white rounded border border-green-200">
+          //     <span className="text-xs text-green-600">
+          //       Coordinates will be automatically used to populate address fields
+          //     </span>
+          //   </div>
+          // </div>
+        )} */}
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-3">

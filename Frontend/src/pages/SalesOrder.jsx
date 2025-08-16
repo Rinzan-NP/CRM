@@ -35,6 +35,8 @@ const SalesOrders = () => {
     const { products } = useSelector(
         (state) => state.products
     );
+
+    
     const { customers } = useSelector(
         (state) => state.customers
     );
@@ -220,12 +222,19 @@ const SalesOrders = () => {
         await dispatch(deleteSalesOrder(id));
     };
 
-    const handleEditSalesOrder = (salesOrder) => {
-        setEditMode(true);
-        setEditId(salesOrder.id);
-        setSalesOrder(salesOrder);
-        setShowForm(true);
-    };
+    const handleEditSalesOrder = (order) => {
+    // Initialize the salesOrder state with the existing order data
+    setSalesOrder({
+        ...order,
+        line_items: order.line_items.map((item) => ({
+            ...item,
+            product_id: item.product.id, // Ensure product_id is set from the existing product
+        })),
+    });
+    setEditMode(true);
+    setEditId(order.id);
+    setShowForm(true);
+};
 
     const handleShowNewOrderForm = () => {
         setEditMode(false);
@@ -299,6 +308,11 @@ const SalesOrders = () => {
                 </span>
             ),
         },
+        {
+        header: "Product", // Add this new column definition
+        accessor: "line_items.product.name", // Access the product name
+        cell: (row) => row.line_items.length > 0 ? row.line_items[0].product.name || "N/A" : "N/A",
+    },
         {
             header: "Actions",
             accessor: "actions",
@@ -492,19 +506,19 @@ const SalesOrders = () => {
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                             <FormField label="Product" required>
                                                 <select
-                                                    name="product"
-                                                    required
-                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                                    value={item.product_id}
-                                                    onChange={(e) => handleLineItemChange(index, "product_id", e.target.value)}
-                                                >
-                                                    <option value="">Select Product</option>
-                                                    {products.map((product) => (
-                                                        <option key={product.id} value={product.id}>
-                                                            {product.name}
-                                                        </option>
-                                                    ))}
-                                                </select>
+    name="product"
+    required
+    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+    value={item.product_id || ""} // Set the value to product_id or empty string
+    onChange={(e) => handleLineItemChange(index, "product_id", e.target.value)}
+>
+    <option value="">Select Product</option>
+    {products.map((product) => (
+        <option key={product.id} value={product.id}>
+            {product.name}
+        </option>
+    ))}
+</select>
                                             </FormField>
 
                                             <FormField label="Quantity" required>
