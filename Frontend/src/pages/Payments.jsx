@@ -3,11 +3,15 @@ import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPayments, createPayment, updatePayment, deletePayment } from '../redux/paymentsSlice';
 import { fetchInvoices } from '../redux/invoicesSlice';
-import { FiPlus, FiSearch, FiX, FiEdit, FiTrash2, FiDollarSign, FiCalendar, FiCreditCard } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiTrash2, FiDollarSign, FiCalendar, FiCreditCard, FiRefreshCw } from 'react-icons/fi';
 import Modal from '../components/Common/Modal';
 import Loader from '../components/Common/Loader';
 import EmptyState from '../components/Common/EmptyState';
 import Toast from '../components/Common/Toast';
+import PageHeader from '../components/layout/PageHeader';
+import SearchInput from '../components/ui/SearchInput';
+import StatsCard from '../components/ui/StatsCard';
+import { FiDollarSign as DollarIcon } from 'react-icons/fi';
 
 const Payments = () => {
   const { payments, loading: loadingPayments, error: paymentsError } = useSelector((state) => state.payments);
@@ -28,6 +32,7 @@ const Payments = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
+  const [lastPaymentResult, setLastPaymentResult] = useState(null);
 
   useEffect(() => {
     dispatch(fetchPayments());
@@ -47,10 +52,17 @@ const Payments = () => {
     if (formData.invoice && invoices.length > 0) {
       const selectedInvoice = invoices.find((invoice) => invoice.id === formData.invoice);
       if (selectedInvoice) {
-        const outstandingAmount = parseFloat(selectedInvoice.outstanding || selectedInvoice.amount_due);
+        // Use outstanding if available, otherwise calculate from amount_due - paid_amount
+        let outstandingAmount = 0;
+        if (selectedInvoice.outstanding !== undefined) {
+          outstandingAmount = parseFloat(selectedInvoice.outstanding);
+        } else {
+          outstandingAmount = parseFloat(selectedInvoice.amount_due || 0) - parseFloat(selectedInvoice.paid_amount || 0);
+        }
+        
         setFormData(prev => ({
           ...prev,
-          amount: outstandingAmount > 0 ? outstandingAmount.toString() : ''
+          amount: outstandingAmount > 0 ? outstandingAmount.toFixed(2) : ''
         }));
       }
     }
@@ -92,13 +104,22 @@ const Payments = () => {
         amount: parseFloat(formData.amount)
       };
 
+      let result;
       if (isEditing) {
-        await dispatch(updatePayment({ id: currentPaymentId, ...paymentData })).unwrap();
+        result = await dispatch(updatePayment({ id: currentPaymentId, ...paymentData })).unwrap();
         setToastMessage('Payment updated successfully');
       } else {
-        await dispatch(createPayment(paymentData)).unwrap();
+        result = await dispatch(createPayment(paymentData)).unwrap();
         setToastMessage('Payment created successfully');
+        
+        // Store the payment result to show updated invoice info
+        if (result.invoice_updated) {
+          setLastPaymentResult(result.invoice_updated);
+        }
       }
+      
+      // Refresh invoices to get updated outstanding amounts
+      dispatch(fetchInvoices());
       
       setToastType('success');
       setShowToast(true);
@@ -150,18 +171,26 @@ const Payments = () => {
   };
 
   const getCustomerName = (invoice) => {
-    if (!invoice || !invoice.sales_order || !invoice.sales_order.customer) return 'N/A';
-    const customer = invoice.sales_order.customer;
-    return customer.name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim() || 'N/A';
-  };
-
-  const getInvoiceDisplayName = (invoice) => {
-    return `${invoice.invoice_no || `Invoice ${invoice.id}`} - ${getCustomerName(invoice)}`;
+    console.log('====================================');
+    console.log(invoice);
+    console.log('====================================');
+    return invoice?.customer_name || 'N/A';
   };
 
   const formatCurrency = (value) => {
     const num = parseFloat(value);
     return isNaN(num) ? '0.00' : num.toFixed(2);
+  };
+
+  const getInvoiceDisplayName = (invoice) => {
+    let outstanding = 0;
+    if (invoice.outstanding !== undefined) {
+      outstanding = parseFloat(invoice.outstanding);
+    } else {
+      outstanding = parseFloat(invoice.amount_due || 0) - parseFloat(invoice.paid_amount || 0);
+    }
+    
+    return `${invoice.invoice_no || `Invoice ${invoice.id}`} - ${getCustomerName(invoice)} - Outstanding: $${outstanding.toFixed(2)}`;
   };
 
   const formatDate = (dateString) => {
@@ -192,7 +221,7 @@ const Payments = () => {
 
   // Filter invoices that have outstanding amounts
   const availableInvoices = invoices.filter(invoice => {
-    const outstanding = parseFloat(invoice.outstanding || invoice.amount_due);
+    const outstanding = parseFloat(invoice.outstanding || (parseFloat(invoice.amount_due || 0) - parseFloat(invoice.paid_amount || 0)));
     return outstanding > 0;
   });
 
@@ -201,46 +230,43 @@ const Payments = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
-            <p className="text-gray-600">Track and manage customer payments</p>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FiSearch className="text-gray-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search payments..."
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  <FiX className="text-gray-400 hover:text-gray-600" />
-                </button>
-              )}
-            </div>
-            
+        <PageHeader
+          title="Payments"
+          subtitle="Track and manage customer payments"
+          actions={[
+            <SearchInput
+              key="search"
+              placeholder="Search payments..."
+              value={searchTerm}
+              onChange={setSearchTerm}
+              onClear={() => setSearchTerm("")}
+            />,
             <button
+              key="refresh"
+              onClick={() => dispatch(fetchInvoices())}
+              className="flex items-center justify-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+            >
+              <FiRefreshCw className="mr-2" />
+              Refresh Invoices
+            </button>,
+            <button
+              key="add"
               onClick={() => {
                 resetForm();
                 setShowModal(true);
               }}
-              className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              className="flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
             >
               <FiPlus className="mr-2" />
               Add Payment
-            </button>
-          </div>
+            </button>,
+          ]}
+        />
+
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatsCard title="Total Payments" value={payments.length} icon={DollarIcon} color="emerald" />
+          <StatsCard title="Outstanding Invoices" value={availableInvoices.length} icon={DollarIcon} color="rose" />
+          <StatsCard title="Avg Payment" value={`$${(payments.reduce((s,p)=>s+parseFloat(p.amount||0),0)/(payments.length||1)).toFixed(2)}`} icon={DollarIcon} color="amber" />
         </div>
 
         {/* Payments Table */}
@@ -364,7 +390,7 @@ const Payments = () => {
                 ) : availableInvoices.length > 0 ? (
                   availableInvoices.map((invoice) => (
                     <option key={invoice.id} value={invoice.id}>
-                      {getInvoiceDisplayName(invoice)} - Outstanding: ${formatCurrency(invoice.outstanding || invoice.amount_due)}
+                      {getInvoiceDisplayName(invoice)}
                     </option>
                   ))
                 ) : (

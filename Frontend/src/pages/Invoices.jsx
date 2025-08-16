@@ -3,9 +3,17 @@ import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchInvoices, createInvoice, updateInvoice, deleteInvoice } from '../redux/invoicesSlice';
 import { fetchSalesOrders } from '../redux/salesOrdersSlice';
+import PageHeader from '../components/layout/PageHeader';
+import StatsCard from '../components/ui/StatsCard';
+import DataTable from '../components/ui/DataTable';
+import FormField from '../components/ui/FormField';
+import ChartCard from '../components/ui/ChartCard';
+import Modal from '../components/Common/Modal';
+import { FileText, DollarSign, Plus, Edit, Trash2 } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const Invoices = () => {
-  const { invoices, loading: loadingInvoices } = useSelector((state) => state.invoices);
+  const { invoices } = useSelector((state) => state.invoices);
   const { salesOrders, loading: loadingSalesOrders } = useSelector((state) => state.salesOrders);
   const dispatch = useDispatch();
   const [invoice, setInvoice] = useState({
@@ -15,6 +23,7 @@ const Invoices = () => {
   });
   const [editMode, setEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     dispatch(fetchInvoices());
@@ -28,199 +37,260 @@ const Invoices = () => {
 
   const handleCreateInvoice = async (e) => {
     e.preventDefault();
-    console.log(invoice);
-    
     await dispatch(createInvoice(invoice));
-    setInvoice({
-      sales_order: '',
-      issue_date: '',
-      due_date: '',
-    });
+    resetForm();
+    setShowModal(false);
   };
 
   const handleUpdateInvoice = async (e) => {
     e.preventDefault();
     await dispatch(updateInvoice({ id: editId, ...invoice }));
-    setEditMode(false);
-    setInvoice({
-      sales_order: '',
-      issue_date: '',
-      due_date: '',
-    });
+    resetForm();
+    setShowModal(false);
   };
 
   const handleDeleteInvoice = async (id) => {
     await dispatch(deleteInvoice(id));
   };
 
-  const handleEditInvoice = (invoice) => {
+  const handleEditInvoice = (row) => {
     setEditMode(true);
-    setEditId(invoice.id);
-    setInvoice(invoice);
+    setEditId(row.id);
+    setInvoice({
+      sales_order: row.sales_order,
+      issue_date: row.issue_date,
+      due_date: row.due_date,
+    });
+    setShowModal(true);
   };
 
-  useEffect(() => {}, [salesOrders, editMode]);
-
-  const getCustomerName = (customer) => {
-    if (!customer) return 'N/A';
-    return `${customer.first_name} ${customer.last_name}`;
+  const resetForm = () => {
+    setEditMode(false);
+    setEditId(null);
+    setInvoice({
+      sales_order: '',
+      issue_date: '',
+      due_date: '',
+    });
   };
+
+  const getOrderDisplay = (orderId) => {
+    const so = salesOrders.find(o => o.id === orderId);
+    if (!so) return `Order ${orderId}`;
+    return `${so.order_number || so.id}`;
+  };
+
+  const formatCurrency = (value) => {
+    const num = parseFloat(value);
+    return isNaN(num) ? '0.00' : num.toFixed(2);
+  };
+
+  // Chart data: invoices by issue date (amount due)
+  const chartData = invoices.slice(-7).map(inv => ({
+    date: inv.issue_date ? new Date(inv.issue_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'N/A',
+    due: parseFloat(inv.amount_due) || 0,
+    paid: parseFloat(inv.paid_amount) || 0,
+  }));
+
+  const columns = [
+    {
+      header: 'Sales Order',
+      accessor: 'sales_order',
+      cell: (row) => (
+        <span className="font-medium text-slate-900">{getOrderDisplay(row.sales_order)}</span>
+      ),
+    },
+    {
+      header: 'Invoice #',
+      accessor: 'invoice_no',
+    },
+    {
+      header: 'Issue Date',
+      accessor: 'issue_date',
+      cell: (row) => row.issue_date ? new Date(row.issue_date).toLocaleDateString() : 'N/A',
+    },
+    {
+      header: 'Due Date',
+      accessor: 'due_date',
+      cell: (row) => row.due_date ? new Date(row.due_date).toLocaleDateString() : 'N/A',
+    },
+    {
+      header: 'Amount Due',
+      accessor: 'amount_due',
+      cell: (row) => `$${formatCurrency(row.amount_due)}`,
+    },
+    {
+      header: 'Paid',
+      accessor: 'paid_amount',
+      cell: (row) => `$${formatCurrency(row.paid_amount)}`,
+    },
+    {
+      header: 'Status',
+      accessor: 'status',
+      cell: (row) => (
+        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+          row.status === 'paid' ? 'bg-emerald-100 text-emerald-800' :
+          row.status === 'overdue' ? 'bg-rose-100 text-rose-800' :
+          'bg-slate-100 text-slate-800'
+        }`}>
+          {row.status || 'pending'}
+        </span>
+      ),
+    },
+    {
+      header: 'Actions',
+      accessor: 'actions',
+      cell: (row) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleEditInvoice(row)}
+            className="p-1 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => handleDeleteInvoice(row.id)}
+            className="p-1 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const totalDue = invoices.reduce((s, i) => s + (parseFloat(i.amount_due) || 0), 0);
+  const totalPaid = invoices.reduce((s, i) => s + (parseFloat(i.paid_amount) || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Manage Invoices
-        </h2>
-      </div>
+    <div className="min-h-screen bg-slate-50 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <PageHeader 
+          title="Invoices" 
+          subtitle="Create and manage customer invoices"
+          actions={[
+            <button
+              key="add"
+              onClick={() => { resetForm(); setShowModal(true); }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              New Invoice
+            </button>
+          ]}
+        />
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form onSubmit={editMode ? handleUpdateInvoice : handleCreateInvoice}>
-            <div>
-              <label htmlFor="sales_order" className="block text-sm font-medium text-gray-700">
-                Sales Order
-              </label>
-              <div className="mt-1">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatsCard title="Total Invoices" value={invoices.length} icon={FileText} color="violet" />
+          <StatsCard title="Amount Due" value={`$${totalDue.toFixed(2)}`} icon={DollarSign} color="rose" />
+          <StatsCard title="Paid" value={`$${totalPaid.toFixed(2)}`} icon={DollarSign} color="emerald" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ChartCard title="Invoice Trend (Last 7)" trend={totalPaid - totalDue >= 0 ? 3.1 : -1.4} trendValue={Math.abs(totalPaid - totalDue).toFixed(0)} trendLabel="delta">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
+                <YAxis stroke="#64748b" fontSize={12} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px' }}
+                />
+                <Line type="monotone" dataKey="due" stroke="#ef4444" strokeWidth={2} dot={{ fill: '#ef4444', r: 3 }} />
+                <Line type="monotone" dataKey="paid" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981', r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          {/* <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Quick Actions</h3>
+            <div className="space-y-3">
+              <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors">
+                Generate Next Invoice
+              </button>
+              <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 transition-colors">
+                Export Invoices (CSV)
+              </button>
+            </div>
+          </div> */}
+        </div>
+
+        <Modal 
+          isOpen={showModal} 
+          onClose={() => setShowModal(false)}
+          title={editMode ? 'Edit Invoice' : 'Create New Invoice'}
+        >
+          <form onSubmit={editMode ? handleUpdateInvoice : handleCreateInvoice} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField label="Sales Order" required>
                 <select
-                  id="sales_order"
                   name="sales_order"
                   required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   value={invoice.sales_order}
                   onChange={handleInputChange}
                 >
                   <option value="">Select Sales Order</option>
                   {loadingSalesOrders ? (
-                      <option value="">Loading...</option>
+                    <option value="">Loading...</option>
                   ) : (
-                      salesOrders.map((salesOrder) => (
-                          <option
-                              key={salesOrder.id}
-                              value={salesOrder.id}
-                          >
-                              {salesOrder.order_number || salesOrder.id} - {getCustomerName(salesOrder.customer)}
-                          </option>
-                      ))
+                    salesOrders.map((salesOrder) => (
+                      <option key={salesOrder.id} value={salesOrder.id}>
+                        {salesOrder.order_number || salesOrder.id}
+                      </option>
+                    ))
                   )}
                 </select>
-              </div>
-            </div>
+              </FormField>
 
-            
-
-            <div>
-              <label htmlFor="issue_date" className="block text-sm font-medium text-gray-700">
-                Issue Date
-              </label>
-              <div className="mt-1">
+              <FormField label="Issue Date" required>
                 <input
-                  id="issue_date"
-                  name="issue_date"
                   type="date"
+                  name="issue_date"
                   required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   value={invoice.issue_date}
                   onChange={handleInputChange}
                 />
-              </div>
-            </div>
+              </FormField>
 
-            <div>
-              <label htmlFor="due_date" className="block text-sm font-medium text-gray-700">
-                Due Date
-              </label>
-              <div className="mt-1">
+              <FormField label="Due Date" required>
                 <input
-                  id="due_date"
-                  name="due_date"
                   type="date"
+                  name="due_date"
                   required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   value={invoice.due_date}
                   onChange={handleInputChange}
                 />
-              </div>
+              </FormField>
             </div>
 
-            
-
-            
-
-            
-
-            <div className="mt-6">
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                Cancel
+              </button>
               <button
                 type="submit"
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
               >
                 {editMode ? 'Update Invoice' : 'Create Invoice'}
               </button>
             </div>
           </form>
-        </div>
-      </div>
+        </Modal>
 
-      <div className="mt-8">
-        <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Sales Order
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Invoice Number
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Issue Date
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Due Date
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount Due
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Paid Amount
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {invoices.map((invoice) => (
-                <tr key={invoice.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">{invoice.sales_order}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{invoice.invoice_no}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{invoice.issue_date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{invoice.due_date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{invoice.amount_due}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{invoice.paid_amount}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{invoice.status}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <button
-                      onClick={() => handleEditInvoice(invoice)}
-                      className="text-indigo-600 hover:text-indigo-900"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteInvoice(invoice.id)}
-                      className="ml-4 text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data={invoices}
+          columns={columns}
+          pageSize={10}
+          onRowClick={handleEditInvoice}
+          showPagination={true}
+        />
       </div>
     </div>
   );

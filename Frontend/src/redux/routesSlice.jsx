@@ -18,6 +18,7 @@ export const createRoute = createAsyncThunk(
   'routes/createRoute',
   async (route, { rejectWithValue }) => {
     try {
+      console.log(`Creating route: ${JSON.stringify(route)}`);
       const response = await api.post('/transactions/routes/', route);
       return response.data;
     } catch (error) {

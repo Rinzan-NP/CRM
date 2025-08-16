@@ -1,133 +1,497 @@
 // src/components/Customers/CustomerForm.jsx
-import React from 'react';
-import { FiUser, FiMail, FiPhone, FiHome, FiDollarSign } from 'react-icons/fi';
+import React, { useState, useEffect, useRef } from 'react';
+import { FiMapPin, FiNavigation, FiGlobe, FiTarget, FiCheckCircle, FiSearch, FiXCircle } from 'react-icons/fi';
+import FormField from '../ui/FormField';
+import Button from '../ui/Button';
+import Toast from '../Common/Toast';
+import MapLocationPicker from './MapLocationPicker';
+import api from '../../services/api';
+import { GoogleMapsProvider, Autocomplete } from '../Common/GoogleMapWrapper';
 
-const CustomerForm = ({ formData, isEditing, onChange, onSubmit, onCancel, isLoading }) => {
+const CustomerForm = ({ customer, onSubmit, onCancel, mode = 'create' }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    credit_limit: '0.00',
+    lat: '',
+    lon: '',
+    city: '',
+    state: '',
+    country: '',
+    postal_code: ''
+  });
+  
+  const [loading, setLoading] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const [locationStatus, setLocationStatus] = useState('none'); // none, coordinates, verified
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const addressAutocompleteRef = useRef(null);
+
+  useEffect(() => {
+    if (customer) {
+      setFormData({
+        name: customer.name || '',
+        email: customer.email || '',
+        phone: customer.phone || '',
+        address: customer.address || '',
+        credit_limit: customer.credit_limit || '0.00',
+        lat: customer.lat || '',
+        lon: customer.lon || '',
+        city: customer.city || '',
+        state: customer.state || '',
+        country: customer.country || '',
+        postal_code: customer.postal_code || ''
+      });
+      
+      // Set location status
+      if (customer.location_verified) {
+        setLocationStatus('verified');
+      } else if (customer.lat && customer.lon) {
+        setLocationStatus('coordinates');
+      } else {
+        setLocationStatus('none');
+      }
+    }
+  }, [customer]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const fillAddressFromPlace = (place) => {
+    if (!place || !place.geometry || !place.geometry.location) return;
+    const lat = place.geometry.location.lat();
+    const lng = place.geometry.location.lng();
+    const components = place.address_components || [];
+    const get = (type) => components.find(c => c.types.includes(type))?.long_name || '';
+    const city = get('locality') || get('sublocality') || get('administrative_area_level_2');
+    const state = get('administrative_area_level_1');
+    const country = get('country');
+    const postal_code = get('postal_code');
+    setFormData(prev => ({
+      ...prev,
+      address: place.formatted_address || prev.address,
+      lat: parseFloat(lat.toFixed(6)),
+      lon: parseFloat(lng.toFixed(6)),
+      city,
+      state,
+      country,
+      postal_code
+    }));
+    setLocationStatus('coordinates');
+    setInfo('Address selected! Coordinates and details filled from Google Places.');
+  };
+
+  const handleGeocodeAddress = async () => {
+    if (!formData.address) {
+      setError('Please enter an address first');
+      return;
+    }
+
+    setGeocoding(true);
+    setError('');
+    
+    try {
+      if (mode === 'edit' && customer?.id) {
+        // Use the geocoding API endpoint
+        const response = await api.post(`/main/customers/${customer.id}/geocode_address/`);
+        const updatedCustomer = response.data.customer;
+        
+        // Round coordinates to 6 decimal places to match database precision
+        const roundedLat = updatedCustomer.lat ? parseFloat(parseFloat(updatedCustomer.lat).toFixed(6)) : '';
+        const roundedLon = updatedCustomer.lon ? parseFloat(parseFloat(updatedCustomer.lon).toFixed(6)) : '';
+        
+        setFormData(prev => ({
+          ...prev,
+          lat: roundedLat,
+          lon: roundedLon,
+          city: updatedCustomer.city || '',
+          state: updatedCustomer.state || '',
+          country: updatedCustomer.country || '',
+          postal_code: updatedCustomer.postal_code || ''
+        }));
+        
+        setLocationStatus('verified');
+        setInfo('Address geocoded successfully! GPS coordinates and address details updated.');
+      } else {
+        // For new customers, use the address suggestions
+        if (formData.lat && formData.lon) {
+          setLocationStatus('coordinates');
+          setInfo('Address coordinates set! You can now save the customer.');
+        } else {
+          setError('Please select an address from the suggestions above');
+        }
+      }
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Failed to geocode address. Please check the address format.');
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
+  const handleMapLocationSelect = async (lat, lon) => {
+    try {
+      // Reverse geocode the coordinates to get address details
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`
+      );
+      const data = await response.json();
+      
+      if (data.display_name) {
+        // Round coordinates to 6 decimal places to match database precision
+        const roundedLat = parseFloat(parseFloat(lat).toFixed(6));
+        const roundedLon = parseFloat(parseFloat(lon).toFixed(6));
+        
+        setFormData(prev => ({
+          ...prev,
+          lat: roundedLat,
+          lon: roundedLon,
+          address: data.display_name,
+          city: data.address?.city || data.address?.town || data.address?.village || '',
+          state: data.address?.state || data.address?.province || '',
+          country: data.address?.country || '',
+          postal_code: data.address?.postcode || ''
+        }));
+        
+        setLocationStatus('coordinates');
+        setShowMapPicker(false);
+        setInfo('Location selected from map! Address details automatically filled.');
+      } else {
+        // Fallback if reverse geocoding fails
+        // Round coordinates to 6 decimal places to match database precision
+        const roundedLat = parseFloat(parseFloat(lat).toFixed(6));
+        const roundedLon = parseFloat(parseFloat(lon).toFixed(6));
+        
+        setFormData(prev => ({
+          ...prev,
+          lat: roundedLat,
+          lon: roundedLon
+        }));
+        
+        setLocationStatus('coordinates');
+        setShowMapPicker(false);
+        setInfo('Location selected from map! You may need to manually enter address details.');
+      }
+    } catch (err) {
+      console.error('Reverse geocoding failed:', err);
+      // Fallback if reverse geocoding fails
+      // Round coordinates to 6 decimal places to match database precision
+      const roundedLat = parseFloat(parseFloat(lat).toFixed(6));
+      const roundedLon = parseFloat(parseFloat(lon).toFixed(6));
+      
+      setFormData(prev => ({
+        ...prev,
+        lat: roundedLat,
+        lon: roundedLon
+      }));
+      
+      setLocationStatus('coordinates');
+      setShowMapPicker(false);
+      setInfo('Location selected from map! You may need to manually enter address details.');
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const submitData = { ...formData };
+      
+      // Convert numeric fields
+      if (submitData.credit_limit) {
+        submitData.credit_limit = parseFloat(submitData.credit_limit);
+      }
+      
+      // Handle coordinates - ensure they are valid numbers or null
+      if (submitData.lat && submitData.lon) {
+        const lat = parseFloat(submitData.lat);
+        const lon = parseFloat(submitData.lon);
+        
+        // Validate coordinate ranges
+        if (isNaN(lat) || isNaN(lon)) {
+          throw new Error('Invalid coordinates provided');
+        }
+        
+        if (lat < -90 || lat > 90) {
+          throw new Error('Latitude must be between -90 and 90');
+        }
+        
+        if (lon < -180 || lon > 180) {
+          throw new Error('Longitude must be between -180 and 180');
+        }
+        
+        // Round coordinates to 6 decimal places to match database precision
+        submitData.lat = parseFloat(lat.toFixed(6));
+        submitData.lon = parseFloat(lon.toFixed(6));
+      } else {
+        // If no coordinates, set them to null
+        submitData.lat = null;
+        submitData.lon = null;
+      }
+
+      // Remove empty string fields that might cause validation issues
+      Object.keys(submitData).forEach(key => {
+        if (submitData[key] === '') {
+          submitData[key] = null;
+        }
+      });
+
+      await onSubmit(submitData);
+    } catch (err) {
+      setError(err?.message || err?.response?.data?.detail || 'Failed to save customer');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getLocationStatusIcon = () => {
+    switch (locationStatus) {
+      case 'verified':
+        return <FiCheckCircle className="h-5 w-5 text-green-500" />;
+      case 'coordinates':
+        return <FiTarget className="h-5 w-5 text-blue-500" />;
+      default:
+        return <FiMapPin className="h-5 w-5 text-gray-400" />;
+    }
+  };
+
+  const getLocationStatusText = () => {
+    switch (locationStatus) {
+      case 'verified':
+        return 'Location Verified';
+      case 'coordinates':
+        return 'Coordinates Set';
+      default:
+        return 'No Location Data';
+    }
+  };
+
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-          Name <span className="text-red-500">*</span>
-        </label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FiUser className="text-gray-400" />
-          </div>
-          <input
-            id="name"
-            name="name"
-            type="text"
-            required
-            className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            value={formData.name}
-            onChange={onChange}
-          />
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Basic Information */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField label="Name" required>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </FormField>
+
+          <FormField label="Email" required>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </FormField>
+
+          <FormField label="Phone">
+            <input
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={handleInputChange}
+              className="w-full px-3 py-2 border  border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </FormField>
+
+          <FormField label="Credit Limit">
+            <input
+              type="number"
+              name="credit_limit"
+              value={formData.credit_limit}
+              onChange={handleInputChange}
+              step="0.01"
+              min="0"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </FormField>
         </div>
       </div>
 
-      <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-          Email <span className="text-red-500">*</span>
-        </label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FiMail className="text-gray-400" />
+      {/* Location Information */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Location Information</h3>
+          <div className="flex items-center gap-2">
+            {getLocationStatusIcon()}
+            <span className={`text-sm font-medium ${
+              locationStatus === 'verified' ? 'text-green-600' :
+              locationStatus === 'coordinates' ? 'text-blue-600' : 'text-gray-500'
+            }`}>
+              {getLocationStatusText()}
+            </span>
           </div>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            required
-            className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            value={formData.email}
-            onChange={onChange}
-          />
+        </div>
+
+        {/* Address Field with Google Places Autocomplete */}
+        <div className="mb-4">
+          <FormField label="Address">
+            <GoogleMapsProvider>
+              <Autocomplete
+                onLoad={(ac) => (addressAutocompleteRef.current = ac)}
+                onPlaceChanged={() => fillAddressFromPlace(addressAutocompleteRef.current?.getPlace())}
+              >
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  placeholder="Start typing address (Google Places)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </Autocomplete>
+            </GoogleMapsProvider>
+          </FormField>
+        </div>
+
+        {/* Location Selection Buttons */}
+        <div className="mb-4 flex gap-3">
+          <Button
+            type="button"
+            onClick={() => setShowMapPicker(true)}
+            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center gap-2"
+          >
+            <FiMapPin />
+            Pick Location on Map
+          </Button>
+
+          <Button
+            type="button"
+            onClick={handleGeocodeAddress}
+            disabled={geocoding || !formData.address}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+          >
+            <FiNavigation />
+            {geocoding ? 'Processing...' : '📍 Get Coordinates'}
+          </Button>
+        </div>
+
+        {/* GPS Coordinates Display (Read-only) */}
+        {(formData.lat && formData.lon) && (
+          <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+            <div className="flex items-center gap-2 mb-2">
+              <FiTarget className="h-4 w-4 text-green-600" />
+              <span className="text-sm font-medium text-green-800">GPS Coordinates Set</span>
+            </div>
+            <div className="text-sm text-green-700">
+              {/* <div>Latitude: {formData.lat}</div>
+              <div>Longitude: {formData.lon}</div> */}
+              {formData.city && <div>City: {formData.city}</div>}
+              {formData.state && <div>State: {formData.state}</div>}
+              {formData.country && <div>Country: {formData.country}</div>}
+              {formData.postal_code && <div>Postal Code: {formData.postal_code}</div>}
+            </div>
+          </div>
+        )}
+
+        {/* Address Components (Auto-filled from selection) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField label="City">
+            <input
+              type="text"
+              name="city"
+              value={formData.city}
+              onChange={handleInputChange}
+              placeholder="City"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </FormField>
+
+          <FormField label="State/Province">
+            <input
+              type="text"
+              name="state"
+              value={formData.state}
+              onChange={handleInputChange}
+              placeholder="State or Province"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </FormField>
+
+          <FormField label="Country">
+            <input
+              type="text"
+              name="country"
+              value={formData.country}
+              onChange={handleInputChange}
+              placeholder="Country"
+              maxLength="3"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </FormField>
+
+          <FormField label="Postal Code">
+            <input
+              type="text"
+              name="postal_code"
+              value={formData.postal_code}
+              onChange={handleInputChange}
+              placeholder="Postal Code"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </FormField>
         </div>
       </div>
 
-      <div>
-        <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-          Phone <span className="text-red-500">*</span>
-        </label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FiPhone className="text-gray-400" />
-          </div>
-          <input
-            id="phone"
-            name="phone"
-            type="tel"
-            required
-            className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            value={formData.phone}
-            onChange={onChange}
-          />
-        </div>
-      </div>
-
-      <div>
-        <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
-          Address
-        </label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FiHome className="text-gray-400" />
-          </div>
-          <input
-            id="address"
-            name="address"
-            type="text"
-            className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            value={formData.address}
-            onChange={onChange}
-          />
-        </div>
-      </div>
-
-      <div>
-        <label htmlFor="credit_limit" className="block text-sm font-medium text-gray-700 mb-1">
-          Credit Limit
-        </label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FiDollarSign className="text-gray-400" />
-          </div>
-          <input
-            id="credit_limit"
-            name="credit_limit"
-            type="number"
-            className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            value={formData.credit_limit}
-            onChange={onChange}
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-end space-x-3 pt-4">
-        <button
+      {/* Action Buttons */}
+      <div className="flex justify-end gap-3">
+        <Button
           type="button"
           onClick={onCancel}
-          disabled={isLoading}
-          className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          variant="secondary"
+          className="px-6 py-2"
         >
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
-          disabled={isLoading}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 flex items-center"
+          disabled={loading}
+          className="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isLoading && (
-            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          )}
-          {isEditing ? 'Update Customer' : 'Add Customer'}
-        </button>
+          {loading ? 'Saving...' : mode === 'create' ? 'Create Customer' : 'Update Customer'}
+        </Button>
       </div>
+
+      {/* Map Picker Modal */}
+      {showMapPicker && (
+        <MapLocationPicker
+          onLocationSelect={handleMapLocationSelect}
+          onClose={() => setShowMapPicker(false)}
+          currentLocation={formData.lat && formData.lon ? [formData.lat, formData.lon] : null}
+        />
+      )}
+
+      {/* Status Messages */}
+      {error && (
+        <Toast type="error" message={error} onClose={() => setError('')} />
+      )}
+      {info && (
+        <Toast type="success" message={info} onClose={() => setInfo('')} />
+      )}
     </form>
   );
 };
+
+
 
 export default CustomerForm;

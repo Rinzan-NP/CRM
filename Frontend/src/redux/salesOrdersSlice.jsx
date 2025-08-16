@@ -26,6 +26,22 @@ export const createSalesOrder = createAsyncThunk(
   }
 );
 
+export const createSalesOrderFromRoute = createAsyncThunk(
+  'salesOrders/createSalesOrderFromRoute',
+  async ({ salesOrder, routeId, customerId }, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/transactions/sales-orders/create_from_route/', {
+        ...salesOrder,
+        route_id: routeId,
+        customer_id: customerId
+      });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
 export const updateSalesOrder = createAsyncThunk(
   'salesOrders/updateSalesOrder',
   async (salesOrder, { rejectWithValue }) => {
@@ -73,6 +89,9 @@ const salesOrdersSlice = createSlice({
         state.error = action.payload;
       })
       .addCase(createSalesOrder.fulfilled, (state, action) => {
+        state.salesOrders.push(action.payload);
+      })
+      .addCase(createSalesOrderFromRoute.fulfilled, (state, action) => {
         state.salesOrders.push(action.payload);
       })
       .addCase(updateSalesOrder.fulfilled, (state, action) => {

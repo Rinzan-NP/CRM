@@ -1,4 +1,5 @@
 from django.db import models
+from decimal import Decimal
 import uuid
 
 from django.forms import ValidationError
@@ -17,6 +18,14 @@ class Customer(models.Model):
     phone = models.CharField(max_length=20, blank=True, null=True)
     credit_limit = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     address = models.TextField(blank=True, null=True)
+    # Enhanced location fields
+    lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, help_text="Latitude coordinate")
+    lon = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, help_text="Longitude coordinate")
+    city = models.CharField(max_length=100, blank=True, null=True)
+    state = models.CharField(max_length=100, blank=True, null=True)
+    country = models.CharField(max_length=100, blank=True, null=True)
+    postal_code = models.CharField(max_length=20, blank=True, null=True)
+    location_verified = models.BooleanField(default=False, help_text="Whether GPS coordinates have been verified")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     current_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -25,8 +34,55 @@ class Customer(models.Model):
         return self.name
     
     def get_balance(self):
-        # Placeholder for balance calculation logic
-        return 0.0
+        """Return customer's outstanding balance (invoices - payments).
+
+        Includes all invoices linked to this customer's sales orders,
+        excluding draft and cancelled invoices.
+        """
+        try:
+            from transactions.models import Invoice  # local import to avoid circular dependency
+        except Exception:
+            return Decimal("0.00")
+
+        invoices_qs = (
+            Invoice.objects
+            .filter(sales_order__customer=self)
+            .exclude(status__in=["draft", "cancelled"])  # ignore non-actionable invoices
+        )
+
+        totals = invoices_qs.aggregate(
+            amount_due_total=models.Sum("amount_due"),
+            paid_total=models.Sum("paid_amount"),
+        )
+
+        amount_due = totals.get("amount_due_total") or Decimal("0.00")
+        paid = totals.get("paid_total") or Decimal("0.00")
+        return amount_due - paid
+    
+    @property
+    def has_coordinates(self):
+        """Check if customer has GPS coordinates"""
+        return self.lat is not None and self.lon is not None
+    
+    @property
+    def location_display(self):
+        """Get formatted location string"""
+        parts = []
+        if self.city:
+            parts.append(self.city)
+        if self.state:
+            parts.append(self.state)
+        if self.country:
+            parts.append(self.country)
+        if self.postal_code:
+            parts.append(self.postal_code)
+        
+        if parts:
+            return ", ".join(parts)
+        elif self.address:
+            return self.address
+        else:
+            return "Location not specified"
 
 class Supplier(models.Model):
     name = models.CharField(max_length=255)

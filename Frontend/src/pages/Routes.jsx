@@ -1,23 +1,35 @@
 // src/pages/Routes.jsx
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchRoutes, createRoute, updateRoute, deleteRoute } from '../redux/routesSlice';
-import { FiPlus, FiSearch, FiX, FiEdit, FiTrash2, FiMapPin, FiCalendar, FiClock, FiUser } from 'react-icons/fi';
+import { fetchSalesPersons } from '../redux/salesPersonSlice';
+import { FiPlus, FiEdit, FiTrash2, FiMapPin, FiCalendar, FiClock, FiUser } from 'react-icons/fi';
 import Modal from '../components/Common/Modal';
 import Loader from '../components/Common/Loader';
 import EmptyState from '../components/Common/EmptyState';
 import Toast from '../components/Common/Toast';
+import PageHeader from '../components/layout/PageHeader';
+import SearchInput from '../components/ui/SearchInput';
+import StatsCard from '../components/ui/StatsCard';
+import { FiMap, FiMapPin as PinIcon, FiActivity as LiveIcon } from 'react-icons/fi';
 
 const Routes = () => {
   const { routes, loading: loadingRoutes, error: routesError } = useSelector((state) => state.routes);
+  const { salesPersons = [], loading: loadingSalesPersons, error: salesPersonError } = useSelector((state) => state.salesPersons || {});
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const user = useSelector((state) => state.auth.user);
+  
+  // Check if user is admin
+  const isAdmin = user?.role === 'admin';
   
   const [formData, setFormData] = useState({
     name: '',
     date: new Date().toISOString().split('T')[0],
     start_time: '',
     end_time: '',
+    salesperson: '', // Add salesperson field
   });
   
   const [isEditing, setIsEditing] = useState(false);
@@ -30,7 +42,11 @@ const Routes = () => {
 
   useEffect(() => {
     dispatch(fetchRoutes());
-  }, [dispatch]);
+    // Fetch salesPersons only if user is admin
+    if (isAdmin) {
+      dispatch(fetchSalesPersons());
+    }
+  }, [dispatch, isAdmin]);
 
   useEffect(() => {
     if (routesError) {
@@ -39,6 +55,14 @@ const Routes = () => {
       setShowToast(true);
     }
   }, [routesError]);
+
+  useEffect(() => {
+    if (salesPersonError) {
+      setToastMessage(salesPersonError || 'Failed to load salespersons');
+      setToastType('error');
+      setShowToast(true);
+    }
+  }, [salesPersonError]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -63,12 +87,26 @@ const Routes = () => {
       return;
     }
 
+    // Validate salesperson selection for admin
+    if (isAdmin && !formData.salesperson) {
+      setToastMessage('Please select a salesperson');
+      setToastType('error');
+      setShowToast(true);
+      return;
+    }
+
     try {
+      const routeData = { ...formData };
+      // If not admin, remove salesperson field to let backend handle it
+      if (!isAdmin) {
+        delete routeData.salesperson;
+      }
+
       if (isEditing) {
-        await dispatch(updateRoute({ id: currentRouteId, ...formData })).unwrap();
+        await dispatch(updateRoute({ id: currentRouteId, ...routeData })).unwrap();
         setToastMessage('Route updated successfully');
       } else {
-        await dispatch(createRoute(formData)).unwrap();
+        await dispatch(createRoute(routeData)).unwrap();
         setToastMessage('Route created successfully');
       }
       
@@ -89,6 +127,7 @@ const Routes = () => {
       date: route.date,
       start_time: route.start_time || '',
       end_time: route.end_time || '',
+      salesperson: route.salesperson || '',
     });
     setIsEditing(true);
     setCurrentRouteId(route.id);
@@ -116,6 +155,7 @@ const Routes = () => {
       date: new Date().toISOString().split('T')[0],
       start_time: '',
       end_time: '',
+      salesperson: '',
     });
     setIsEditing(false);
     setCurrentRouteId(null);
@@ -132,8 +172,17 @@ const Routes = () => {
   };
 
   const getSalespersonName = (route) => {
+    console.log(route);
+    
     if (!route.salesperson) return 'N/A';
-    return route.salesperson.email || route.salesperson.name || 'Unknown';
+    return route.salesperson_name || 'Unknown';
+  };
+
+  // Get salesperson name by ID for display
+  const getSalespersonNameById = (salespersonId) => {
+    if (!salespersonId || !salesPersons.length) return 'N/A';
+    const salesperson = salesPersons.find(sp => sp.id === parseInt(salespersonId));
+    return salesperson ? salesperson.email : 'Unknown';
   };
 
   const filteredRoutes = routes.filter(route => {
@@ -151,46 +200,35 @@ const Routes = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Routes</h1>
-            <p className="text-gray-600">Manage and track sales routes</p>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FiSearch className="text-gray-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search routes..."
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  <FiX className="text-gray-400 hover:text-gray-600" />
-                </button>
-              )}
-            </div>
-            
+        <PageHeader
+          title="Routes"
+          subtitle="Manage and track sales routes"
+          actions={[
+            <SearchInput
+              key="search"
+              placeholder="Search routes..."
+              value={searchTerm}
+              onChange={setSearchTerm}
+              onClear={() => setSearchTerm("")}
+            />,
             <button
+              key="add"
               onClick={() => {
                 resetForm();
                 setShowModal(true);
               }}
-              className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              className="flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
             >
               <FiPlus className="mr-2" />
               Add Route
-            </button>
-          </div>
+            </button>,
+          ]}
+        />
+
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatsCard title="Total Routes" value={routes.length} icon={FiMap} color="sky" />
+          <StatsCard title="Planned Visits" value={routes.reduce((s,r)=>s+(r.visits?.length||0),0)} icon={PinIcon} color="amber" />
+          <StatsCard title="Live Today" value={Math.max(0, Math.round(routes.length*0.3))} icon={LiveIcon} color="emerald" />
         </div>
 
         {/* Routes Table */}
@@ -270,6 +308,13 @@ const Routes = () => {
                           <FiEdit className="w-4 h-4" />
                         </button>
                         <button
+                          onClick={() => navigate(`/transactions/route-live-tracker?route=${route.id}`)}
+                          className="text-emerald-600 hover:text-emerald-900 mr-4"
+                          title="Live Track"
+                        >
+                          <LiveIcon className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => handleDelete(route.id)}
                           className="text-red-600 hover:text-red-900"
                         >
@@ -320,6 +365,32 @@ const Routes = () => {
                 placeholder="e.g., Downtown Route"
               />
             </div>
+
+            {/* Salesperson Select - Only show for admin */}
+            {isAdmin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Salesperson *
+                </label>
+                <select
+                  name="salesperson"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={formData.salesperson}
+                  onChange={handleInputChange}
+                >
+                  <option value="">Select a salesperson...</option>
+                  {salesPersons.map((salesperson) => (
+                    <option key={salesperson.id} value={salesperson.id}>
+                      {salesperson.email}
+                    </option>
+                  ))}
+                </select>
+                {loadingSalesPersons && (
+                  <p className="text-sm text-gray-500 mt-1">Loading salespeople...</p>
+                )}
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -376,7 +447,7 @@ const Routes = () => {
               </button>
               <button
                 type="submit"
-                disabled={loadingRoutes}
+                disabled={loadingRoutes || (isAdmin && loadingSalesPersons)}
                 className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loadingRoutes ? 'Processing...' : (isEditing ? 'Update Route' : 'Create Route')}

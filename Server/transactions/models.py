@@ -20,7 +20,7 @@ class SalesOrder(BaseModel):
     customer = models.ForeignKey(
         Customer, on_delete=models.CASCADE, related_name="sales_orders"
     )
-    salesperson = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    
     order_date = models.DateField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
@@ -227,13 +227,37 @@ class Invoice(BaseModel):
 
     @property
     def outstanding(self):
-        return max(Decimal(self.amount_due) - Decimal(self.paid_amount), 0)
+        """Calculate outstanding amount"""
+        return max(Decimal(self.amount_due) - Decimal(self.paid_amount), Decimal('0.00'))
 
-    def mark_paid(self, amount):
-        self.paid_amount += amount
-        if self.paid_amount >= self.amount_due:
+    def update_payment_status(self):
+        """Update paid_amount and status based on all payments"""
+        # Force refresh from database to get latest payments
+        self.refresh_from_db()
+        
+        total_paid = self.payments.aggregate(
+            total=models.Sum('amount')
+        )['total'] or Decimal('0.00')
+        
+        # Ensure we're working with Decimal objects
+        total_paid = Decimal(str(total_paid))
+        amount_due = Decimal(str(self.amount_due))
+        
+        self.paid_amount = total_paid
+        
+        # Update status based on payment amount
+        if total_paid >= amount_due:
             self.status = "paid"
-        self.save(update_fields=["paid_amount", "status"])
+        elif total_paid > 0:
+            self.status = "sent"  # Partially paid
+        else:
+            self.status = "sent"  # No payments yet
+        
+        # Save the updated invoice
+        self.save(update_fields=['paid_amount', 'status'])
+        
+        # Debug logging
+        print(f"Invoice {self.invoice_no}: amount_due={amount_due}, total_paid={total_paid}, status={self.status}")
         
     def save(self, *args, **kwargs):
         from datetime import datetime
@@ -260,8 +284,26 @@ class Payment(BaseModel):
     mode    = models.CharField(max_length=30, choices=[("cash", "Cash"), ("bank", "Bank")])
 
     def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        old_amount = None
+        if not is_new:
+            try:
+                old_payment = Payment.objects.get(pk=self.pk)
+                old_amount = old_payment.amount
+            except Payment.DoesNotExist:
+                pass
+        
         super().save(*args, **kwargs)
-        self.invoice.mark_paid(self.amount)
+        
+        # Always update invoice status after saving the payment
+        # This handles both new payments and updates
+        self.invoice.update_payment_status()
+    
+    def delete(self, *args, **kwargs):
+        invoice = self.invoice
+        super().delete(*args, **kwargs)
+        # Update invoice status after deleting payment
+        invoice.update_payment_status()
         
         
 class Route(BaseModel):
@@ -307,17 +349,24 @@ class RouteVisit(BaseModel):
     check_out = models.DateTimeField(null=True, blank=True)
     lat       = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     lon       = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    sales_orders = models.ManyToManyField('SalesOrder', blank=True, related_name='route_visits')
     status    = models.CharField(max_length=10, choices=STATUS_CHOICES, default="planned")
+    notes     = models.TextField(blank=True)
+    # Enhanced visit logging fields
+    payment_collected = models.BooleanField(default=False)
+    payment_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    issues_reported = models.TextField(blank=True)
+    visit_duration_minutes = models.IntegerField(null=True, blank=True)
 
 
 class RouteLocationPing(BaseModel):
     """Live GPS pings during a route visit"""
     route = models.ForeignKey(Route, related_name="location_pings", on_delete=models.CASCADE)
     visit = models.ForeignKey(RouteVisit, related_name="location_pings", on_delete=models.SET_NULL, null=True, blank=True)
-    lat = models.DecimalField(max_digits=9, decimal_places=6)
-    lon = models.DecimalField(max_digits=9, decimal_places=6)
-    accuracy_meters = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
-    speed_mps = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    lat = models.DecimalField(max_digits=20, decimal_places=15)  # Increased to handle high-precision GPS coordinates
+    lon = models.DecimalField(max_digits=20, decimal_places=15)  # Increased to handle high-precision GPS coordinates
+    accuracy_meters = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+    speed_mps = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)  # Increased precision for speed
     heading_degrees = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
 
     class Meta:

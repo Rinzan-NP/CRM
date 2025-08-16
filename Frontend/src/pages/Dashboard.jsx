@@ -1,4 +1,3 @@
-// src/pages/Dashboard.js
 import React from 'react';
 import { useSelector } from 'react-redux';
 import DashboardCard from '../components/Dashboard/DashboardCard';
@@ -6,7 +5,8 @@ import DashboardCard from '../components/Dashboard/DashboardCard';
 const Dashboard = () => {
   const { user } = useSelector((state) => state.auth);
 
-  const menuItems = [
+  // Define all possible menu items with role restrictions
+  const allMenuItems = [
     { 
       title: "Customers", 
       description: "Manage client relationships",
@@ -16,7 +16,8 @@ const Dashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
       ),
-      color: "bg-indigo-500"
+      color: "bg-indigo-500",
+      roles: ["admin"]
     },
     { 
       title: "Suppliers", 
@@ -27,7 +28,8 @@ const Dashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
         </svg>
       ),
-      color: "bg-amber-500"
+      color: "bg-amber-500",
+      roles: ["admin"]
     },
     { 
       title: "Products", 
@@ -38,7 +40,8 @@ const Dashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
         </svg>
       ),
-      color: "bg-emerald-500"
+      color: "bg-emerald-500",
+      roles: ["admin"]
     },
     { 
       title: "Sales Orders", 
@@ -49,7 +52,8 @@ const Dashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
         </svg>
       ),
-      color: "bg-rose-500"
+      color: "bg-rose-500",
+      roles: ["admin", "accountant"]
     },
     { 
       title: "Purchase Orders", 
@@ -60,7 +64,8 @@ const Dashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
         </svg>
       ),
-      color: "bg-cyan-500"
+      color: "bg-cyan-500",
+      roles: ["admin", "accountant"]
     },
     { 
       title: "Invoices", 
@@ -71,7 +76,8 @@ const Dashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       ),
-      color: "bg-violet-500"
+      color: "bg-violet-500",
+      roles: ["admin", "accountant"]
     },
     { 
       title: "Payments", 
@@ -82,7 +88,8 @@ const Dashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
       ),
-      color: "bg-lime-500"
+      color: "bg-lime-500",
+      roles: ["admin", "accountant"]
     },
     { 
       title: "Routes", 
@@ -94,18 +101,8 @@ const Dashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       ),
-      color: "bg-orange-500"
-    },
-    { 
-      title: "Live Route Tracker", 
-      description: "Send live GPS pings",
-      path: "/transactions/route-live-tracker",
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A2 2 0 0122 9.528v4.944a2 2 0 01-2.447 1.804L15 14m0-4v4m0-4L9 7m6 3L9 17m0 0l-4.553 2.276A2 2 0 012 17.472V12.528a2 2 0 011.447-1.804L9 7" />
-        </svg>
-      ),
-      color: "bg-teal-500"
+      color: "bg-orange-500",
+      roles: ["admin", "salesperson"]
     },
     { 
       title: "Route Visits", 
@@ -117,7 +114,8 @@ const Dashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       ),
-      color: "bg-pink-500"
+      color: "bg-pink-500",
+      roles: ["admin", "salesperson"]
     },
     { 
       title: "Audit Logs", 
@@ -128,7 +126,8 @@ const Dashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       ),
-      color: "bg-sky-500"
+      color: "bg-sky-500",
+      roles: ["admin"]
     },
     { 
       title: "Reports & Analytics", 
@@ -139,9 +138,15 @@ const Dashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
       ),
-      color: "bg-purple-500"
+      color: "bg-purple-500",
+      roles: ["admin"]
     }
   ];
+
+  // Filter menu items based on user role
+  const menuItems = allMenuItems.filter(item => 
+    item.roles.includes(user?.role?.toLowerCase() || '')
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-8 px-4 sm:px-6">
@@ -151,12 +156,12 @@ const Dashboard = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">CRM Dashboard</h1>
             <p className="mt-1 text-gray-600">
-              Welcome back, <span className="font-medium">{user.name}</span>
+              Welcome back, <span className="font-medium">{user?.name || 'User'}</span>
             </p>
           </div>
           <div className="px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-200">
             <p className="text-sm font-medium text-gray-700">
-              Role: <span className="text-indigo-600 font-semibold">{user.role}</span>
+              Role: <span className="text-indigo-600 font-semibold">{user?.role || 'Unknown'}</span>
             </p>
           </div>
         </div>
