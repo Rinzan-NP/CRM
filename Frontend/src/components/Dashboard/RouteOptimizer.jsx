@@ -22,7 +22,7 @@ const RouteOptimizer = ({ selectedRouteId }) => {
     setError('');
     
     try {
-      const response = await api.get(`/transactions/route-location-pings/route_summary/?route_id=${selectedRouteId}`);
+      const response = await api.get(`/transactions/route-location-pings/route-summary/?route_id=${selectedRouteId}`);
       setRouteData(response.data);
       setOptimizationData(response.data.optimization);
     } catch (e) {
