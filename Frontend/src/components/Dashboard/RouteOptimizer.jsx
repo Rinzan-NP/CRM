@@ -291,7 +291,7 @@ const RouteOptimizer = ({ selectedRouteId }) => {
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
               <span className="text-sm font-medium">Fuel Efficiency</span>
               <span className="font-bold text-green-600">
-                {(optimizationData.fuel_consumption_liters / optimizationData.actual_distance_km).toFixed(2)}L/100km
+                {(optimizationData.fuel_consumption_liters / optimizationData.actual_distance_km).toFixed(2) || 0}L/100km
               </span>
             </div>
             
