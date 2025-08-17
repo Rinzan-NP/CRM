@@ -1,6 +1,5 @@
-// src/pages/RouteLiveTracker.jsx
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { FiActivity, FiMapPin, FiNavigation, FiTrendingUp, FiClock, FiZap } from 'react-icons/fi';
+import { FiActivity, FiMapPin, FiNavigation, FiTrendingUp, FiClock, FiZap, FiAlertCircle } from 'react-icons/fi';
 import api from '../services/api';
 import PageHeader from '../components/layout/PageHeader';
 import Loader from '../components/Common/Loader';
@@ -24,6 +23,7 @@ const RouteLiveTracker = () => {
   const [showRealTime, setShowRealTime] = useState(true);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [lastConfirmedLocation, setLastConfirmedLocation] = useState(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
   
   const watchIdRef = useRef(null);
   const mapRef = useRef(null);
@@ -90,6 +90,7 @@ const RouteLiveTracker = () => {
       setRoutes(response.data);
     } catch (e) {
       setError('Failed to fetch routes');
+      console.error('Fetch routes error:', e);
     } finally {
       setLoadingRoutes(false);
     }
@@ -102,21 +103,49 @@ const RouteLiveTracker = () => {
     try {
       const response = await api.get(`/transactions/route-location-pings/?route=${selectedRouteId}`);
       setPings(response.data);
+      console.log(`Fetched ${response.data.length} pings for route ${selectedRouteId}`);
     } catch (e) {
+      console.error('Failed to fetch route history:', e);
       setError('Failed to fetch route history');
     }
   }, [selectedRouteId]);
 
-  // Fetch route summary and optimization metrics
+  // Fetch route summary and optimization metrics with improved error handling
   const fetchRouteSummary = useCallback(async () => {
-    if (!selectedRouteId) return;
+    if (!selectedRouteId) {
+      setRouteSummary(null);
+      setOptimizationMetrics(null);
+      return;
+    }
     
+    setLoadingSummary(true);
     try {
       const response = await api.get(`/transactions/route-location-pings/route_summary/?route_id=${selectedRouteId}`);
-      setRouteSummary(response.data.summary);
-      setOptimizationMetrics(response.data.optimization);
+      
+      if (response.data) {
+        setRouteSummary(response.data.summary || null);
+        setOptimizationMetrics(response.data.optimization || null);
+        
+        // Show message if no data available
+        if (response.data.message) {
+          setInfo(response.data.message);
+        }
+        
+        console.log('Route summary fetched:', response.data);
+      }
     } catch (e) {
       console.error('Failed to fetch route summary:', e);
+      
+      // Handle specific error cases
+      if (e.response?.status === 404) {
+        setInfo('No GPS tracking data available for this route yet. Start tracking to see analytics.');
+        setRouteSummary(null);
+        setOptimizationMetrics(null);
+      } else {
+        setError('Failed to fetch route analytics');
+      }
+    } finally {
+      setLoadingSummary(false);
     }
   }, [selectedRouteId]);
 
@@ -136,10 +165,11 @@ const RouteLiveTracker = () => {
       if (response.data.status === 'active') {
         setInfo('Route tracking already active - continuing existing session');
       } else {
-        setInfo('Route tracking started');
+        setInfo('Route tracking started - GPS monitoring active');
       }
     } catch (e) {
-      setError('Failed to start tracking');
+      console.error('Failed to start tracking:', e);
+      setError('Failed to start tracking: ' + (e.response?.data?.detail || e.message));
       return;
     }
 
@@ -191,7 +221,7 @@ const RouteLiveTracker = () => {
           const response = await api.post('/transactions/route-location-pings/', payload);
           const distance = lastConfirmedLocation ? 
             calculateDistance(lastConfirmedLocation.lat, lastConfirmedLocation.lon, newLocation.lat, newLocation.lon) : 0;
-          setInfo(`Location updated - moved ${distance.toFixed(1)}m`);
+          setInfo(`GPS ping sent - moved ${distance.toFixed(1)}m (accuracy: ${accuracy?.toFixed(1)}m)`);
           
           // Update pings state for real-time display
           setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
@@ -199,13 +229,16 @@ const RouteLiveTracker = () => {
           // Fetch updated summary
           fetchRouteSummary();
         } catch (e) {
-          setError(e?.response?.data?.detail || e?.response?.data || 'Failed to send location');
+          console.error('Failed to send location:', e);
+          const errorMsg = e?.response?.data?.detail || e?.response?.data || 'Failed to send location';
+          setError(errorMsg);
         }
       } else {
         setInfo(`Stationary - accuracy: ${accuracy?.toFixed(1)}m`);
       }
     }, (err) => {
       setIsTracking(false);
+      console.error('Geolocation error:', err);
       switch (err.code) {
         case err.PERMISSION_DENIED:
           setError('Location access denied. Please enable location services.');
@@ -245,7 +278,8 @@ const RouteLiveTracker = () => {
       await fetchRouteSummary();
       setInfo('Tracking stopped and summary generated');
     } catch (e) {
-      setError('Failed to stop tracking');
+      console.error('Failed to stop tracking:', e);
+      setError('Failed to stop tracking: ' + (e.response?.data?.detail || e.message));
     }
     
     setIsTracking(false);
@@ -259,6 +293,10 @@ const RouteLiveTracker = () => {
       // Reset location states when switching routes
       setLastConfirmedLocation(null);
       setCurrentLocation(null);
+    } else {
+      setPings([]);
+      setRouteSummary(null);
+      setOptimizationMetrics(null);
     }
   }, [selectedRouteId, fetchRoutePings, fetchRouteSummary]);
 
@@ -324,6 +362,49 @@ const RouteLiveTracker = () => {
     return { center, zoom };
   }, [selectedRoute, pings]);
 
+  // Manual ping function
+  const sendManualPing = useCallback(async () => {
+    if (!navigator.geolocation || !selectedRouteId) {
+      setError('Geolocation not available or no route selected');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const accuracy = position.coords.accuracy;
+      
+      if (!isAccurateEnough(accuracy)) {
+        setError(`Cannot send manual ping - GPS accuracy too poor: ${accuracy?.toFixed(1)}m`);
+        return;
+      }
+
+      const payload = {
+        route: selectedRouteId,
+        lat: position.coords.latitude,
+        lon: position.coords.longitude,
+        accuracy_meters: accuracy ? Math.round(accuracy * 1000000) / 1000000 : null,
+        speed_mps: position.coords.speed ? Math.round(position.coords.speed * 10000) / 10000 : null,
+        heading_degrees: position.coords.heading ? Math.round(position.coords.heading * 100) / 100 : null,
+      };
+      
+      try {
+        await api.post('/transactions/route-location-pings/', payload);
+        setInfo(`Manual GPS ping sent (accuracy: ${accuracy?.toFixed(1)}m)`);
+        setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
+        setLastConfirmedLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
+        fetchRouteSummary();
+      } catch (e) {
+        console.error('Failed to send manual ping:', e);
+        setError('Failed to send manual ping: ' + (e.response?.data?.detail || e.message));
+      }
+    }, (err) => {
+      setError('Failed to get current location for manual ping');
+    }, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 30000
+    });
+  }, [selectedRouteId, isAccurateEnough, fetchRouteSummary]);
+
   if (loadingRoutes && routes.length === 0) {
     return <Loader />;
   }
@@ -381,43 +462,7 @@ const RouteLiveTracker = () => {
                       <FiActivity /> Stop Tracking
                     </button>
                     <button
-                      onClick={async () => {
-                        if (navigator.geolocation) {
-                          navigator.geolocation.getCurrentPosition(async (position) => {
-                            const accuracy = position.coords.accuracy;
-                            
-                            if (!isAccurateEnough(accuracy)) {
-                              setError(`Cannot send manual ping - GPS accuracy too poor: ${accuracy?.toFixed(1)}m`);
-                              return;
-                            }
-
-                            const payload = {
-                              route: selectedRouteId,
-                              lat: position.coords.latitude,
-                              lon: position.coords.longitude,
-                              accuracy_meters: accuracy ? Math.round(accuracy * 1000000) / 1000000 : null,
-                              speed_mps: position.coords.speed ? Math.round(position.coords.speed * 10000) / 10000 : null,
-                              heading_degrees: position.coords.heading ? Math.round(position.coords.heading * 100) / 100 : null,
-                            };
-                            
-                            try {
-                              const response = await api.post('/transactions/route-location-pings/', payload);
-                              setInfo(`Manual location ping sent (accuracy: ${accuracy?.toFixed(1)}m)`);
-                              setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
-                              setLastConfirmedLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
-                              fetchRouteSummary();
-                            } catch (e) {
-                              setError('Failed to send manual ping');
-                            }
-                          }, (err) => {
-                            setError('Failed to get current location for manual ping');
-                          }, {
-                            enableHighAccuracy: true,
-                            timeout: 10000,
-                            maximumAge: 30000
-                          });
-                        }
-                      }}
+                      onClick={sendManualPing}
                       className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
                     >
                       📍 Manual Ping
@@ -554,7 +599,14 @@ const RouteLiveTracker = () => {
         </div>
 
         {/* Route Summary and Optimization Metrics */}
-        {(routeSummary || optimizationMetrics) && (
+        {loadingSummary ? (
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-2">Loading route analytics...</span>
+            </div>
+          </div>
+        ) : (routeSummary || optimizationMetrics) ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Route Summary */}
             {routeSummary && (
@@ -598,7 +650,7 @@ const RouteLiveTracker = () => {
                       <div className="text-sm text-gray-600">Max Speed</div>
                     </div>
                   )}
-                  {routeSummary.movement_efficiency_percent && (
+                  {routeSummary.movement_efficiency_percent !== undefined && (
                     <div className="text-center p-3 bg-indigo-50 rounded-lg">
                       <div className="text-2xl font-bold text-indigo-600">
                         {routeSummary.movement_efficiency_percent}%
@@ -646,12 +698,22 @@ const RouteLiveTracker = () => {
                       optimizationMetrics.efficiency_rating === 'Good' ? 'text-blue-600' :
                       optimizationMetrics.efficiency_rating === 'Fair' ? 'text-yellow-600' : 'text-red-600'
                     }`}>
-                      {optimizationMetrics.efficiency_rating || optimizationMetrics.time_efficiency}
+                      {optimizationMetrics.efficiency_rating}
                     </span>
                   </div>
                 </div>
               </div>
             )}
+          </div>
+        ) : selectedRouteId && !loadingSummary && (
+          <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
+            <div className="flex items-center gap-2">
+              <FiAlertCircle className="text-blue-600" />
+              <h3 className="text-lg font-medium text-blue-800">No GPS Data Available</h3>
+            </div>
+            <p className="text-blue-700 mt-2">
+              No GPS tracking data found for this route. Start tracking to see route analytics and optimization metrics.
+            </p>
           </div>
         )}
 
