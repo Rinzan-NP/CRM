@@ -28,17 +28,22 @@ import {
     TrendingUp
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import Loader from '../components/Common/Loader';
 
 const PurchaseOrders = () => {
-    const { purchaseOrders } = useSelector(
-        (state) => state.purchaseOrders
-    );
-    const { products } = useSelector(
-        (state) => state.products
-    );
-    const { suppliers } = useSelector(
-        (state) => state.suppliers
-    );
+
+    const {
+        purchaseOrders,
+        loading: purchaseOrdersLoading
+    } = useSelector((state) => state.purchaseOrders);
+    const {
+        products,
+        loading: productsLoading
+    } = useSelector((state) => state.products);
+    const {
+        suppliers,
+        loading: suppliersLoading
+    } = useSelector((state) => state.suppliers);
     const dispatch = useDispatch();
     const [purchaseOrder, setPurchaseOrder] = useState({
         supplier: "",
@@ -82,6 +87,11 @@ const PurchaseOrders = () => {
             }, 100); // Small delay to ensure form is rendered
         }
     }, [showForm]);
+
+    // Show loader if any of the slices are loading
+    if (purchaseOrdersLoading || productsLoading || suppliersLoading) {
+        return <Loader />;
+    }
 
     // Helper function to get supplier name by ID
     const getSupplierName = (supplierId) => {

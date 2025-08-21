@@ -13,6 +13,7 @@ import Button from '../components/ui/Button';
 import VatForm from '../components/vat/VatForm';
 import VatTable from '../components/vat/VatTable';
 import Modal from '../components/Common/Modal';
+import Loader from '../components/Common/Loader';
 
 const Products = () => {
   const { products, vatCategories, loading, error } = useSelector((state) => state.products);
@@ -35,6 +36,12 @@ const Products = () => {
     dispatch(fetchProducts());
     dispatch(fetchVatCategories());
   }, [dispatch]);
+
+  if (loading) {
+    return (
+      <Loader/>
+    );
+  }
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;

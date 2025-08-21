@@ -1,0 +1,440 @@
+[
+  {
+    "model": "accounts.user",
+    "pk": "11111111-1111-1111-1111-111111111111",
+    "fields": {
+      "username": "admin",
+      "password": "pbkdf2_sha256$260000$dummy$dummyhash",  
+      "email": "admin@example.com",
+      "role": "admin",
+      "blocked": false,
+      "is_superuser": true,
+      "is_staff": true
+    }
+  },
+  {
+    "model": "main.customer",
+    "pk": 1,
+    "fields": {
+      "name": "Acme Corp",
+      "email": "acme@example.com",
+      "phone": "1234567890",
+      "credit_limit": "10000.00",
+      "address": "123 Main St",
+      "lat": "40.712776",
+      "lon": "-74.005974",
+      "city": "New York",
+      "state": "NY",
+      "country": "USA",
+      "postal_code": "10001",
+      "location_verified": true,
+      "created_at": "2025-08-21T09:00:00Z",
+      "updated_at": "2025-08-21T09:30:00Z",
+      "current_balance": "5000.00"
+    }
+  },
+  {
+    "model": "main.supplier",
+    "pk": 1,
+    "fields": {
+      "name": "Global Supplies",
+      "email": "supplier@example.com",
+      "phone": "9876543210",
+      "address": "456 Supplier Rd",
+      "credit_limit": "20000.00",
+      "created_at": "2025-08-21T09:00:00Z",
+      "updated_at": "2025-08-21T09:30:00Z",
+      "current_balance": "10000.00"
+    }
+  },
+  {
+    "model": "main.vatsettings",
+    "pk": 1,
+    "fields": {
+      "category": "Standard",
+      "rate": "15.00"
+    }
+  },
+  {
+    "model": "main.product",
+    "pk": "22222222-2222-2222-2222-222222222222",
+    "fields": {
+      "code": "P001",
+      "name": "Widget",
+      "unit_price": "50.00",
+      "unit_cost": "30.00",
+      "vat_category": 1,
+      "is_active": true,
+      "created_at": "2025-08-21T09:00:00Z",
+      "updated_at": "2025-08-21T09:30:00Z"
+    }
+  },
+  {
+    "model": "audit.auditlog",
+    "pk": "33333333-3333-3333-3333-333333333333",
+    "fields": {
+      "user": "11111111-1111-1111-1111-111111111111",
+      "action": "CREATE",
+      "model_name": "Customer",
+      "object_id": "1",
+      "timestamp": "2025-08-21T10:00:00Z",
+      "changes": {"field": "name", "old": null, "new": "Acme Corp"}
+    }
+  },
+  {
+    "model": "transactions.salesorder",
+    "pk": "44444444-4444-4444-4444-444444444444",
+    "fields": {
+      "order_number": "SO-20250821-002",
+      "customer": 1,
+      "order_date": "2025-08-21",
+      "status": "confirmed",
+      "subtotal": "100.00",
+      "vat_total": "15.00",
+      "grand_total": "115.00",
+      "profit": "40.00",
+      "prices_include_vat": false,
+      "created_at": "2025-08-21T09:00:00Z",
+      "updated_at": "2025-08-21T09:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.orderlineitem",
+    "pk": "55555555-5555-5555-5555-555555555555",
+    "fields": {
+      "sales_order": "44444444-4444-4444-4444-444444444444",
+      "product": "22222222-2222-2222-2222-222222222222",
+      "quantity": 2,
+      "unit_price": "50.00",
+      "discount": "0.00",
+      "line_total": "100.00",
+      "created_at": "2025-08-21T09:00:00Z",
+      "updated_at": "2025-08-21T09:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.purchaseorder",
+    "pk": "66666666-6666-6666-6666-666666666666",
+    "fields": {
+      "order_number": "PO-20250821-002",
+      "supplier": 1,
+      "order_date": "2025-08-21",
+      "status": "confirmed",
+      "subtotal": "60.00",
+      "vat_total": "9.00",
+      "grand_total": "69.00",
+      "prices_include_vat": false,
+      "created_at": "2025-08-21T09:00:00Z",
+      "updated_at": "2025-08-21T09:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.purchaseorderlineitem",
+    "pk": "77777777-7777-7777-7777-777777777777",
+    "fields": {
+      "purchase_order": "66666666-6666-6666-6666-666666666666",
+      "product": "22222222-2222-2222-2222-222222222222",
+      "quantity": 2,
+      "unit_cost": "30.00",
+      "discount": "0.00",
+      "line_total": "60.00",
+      "created_at": "2025-08-21T09:00:00Z",
+      "updated_at": "2025-08-21T09:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.invoice",
+    "pk": "88888888-8888-8888-8888-888888888888",
+    "fields": {
+      "sales_order": "44444444-4444-4444-4444-444444444444",
+      "invoice_no": "INV-20250821-002",
+      "issue_date": "2025-08-21",
+      "due_date": "2025-09-21",
+      "amount_due": "115.00",
+      "paid_amount": "0.00",
+      "status": "sent",
+      "created_at": "2025-08-21T09:00:00Z",
+      "updated_at": "2025-08-21T09:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.payment",
+    "pk": "99999999-9999-9999-9999-999999999999",
+    "fields": {
+      "invoice": "88888888-8888-8888-8888-888888888888",
+      "amount": "115.00",
+      "paid_on": "2025-08-21",
+      "mode": "cash",
+      "created_at": "2025-08-21T09:00:00Z",
+      "updated_at": "2025-08-21T09:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.route",
+    "pk": "aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "fields": {
+      "route_number": "RT-20250821-002",
+      "salesperson": "11111111-1111-1111-1111-111111111111",
+      "name": "Downtown Route",
+      "date": "2025-08-21",
+      "start_time": "09:00:00",
+      "end_time": "17:00:00",
+      "created_at": "2025-08-21T09:00:00Z",
+      "updated_at": "2025-08-21T09:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.routevisit",
+    "pk": "bbbbbbb2-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "fields": {
+      "route": "aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "customer": 1,
+      "check_in": "2025-08-21T09:30:00Z",
+      "check_out": "2025-08-21T10:00:00Z",
+      "lat": "40.712776",
+      "lon": "-74.005974",
+      "status": "visited",
+      "notes": "Successful visit",
+      "payment_collected": true,
+      "payment_amount": "115.00",
+      "issues_reported": "None",
+      "visit_duration_minutes": 30,
+      "created_at": "2025-08-21T09:00:00Z",
+      "updated_at": "2025-08-21T09:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.routelocationping",
+    "pk": "ccccccc3-cccc-cccc-cccc-cccccccccccc",
+    "fields": {
+      "route": "aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "visit": "bbbbbbb2-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "lat": "40.712776000000000",
+      "lon": "-74.005974000000000",
+      "accuracy_meters": "5.0",
+      "speed_mps": "0.0",
+      "heading_degrees": "90.0",
+      "created_at": "2025-08-21T09:00:00Z",
+      "updated_at": "2025-08-21T09:30:00Z"
+    }
+  },
+  {
+    "model": "accounts.user",
+    "pk": "22222222-2222-2222-2222-222222222222",
+    "fields": {
+      "username": "salesperson1",
+      "password": "pbkdf2_sha256$260000$dummy$dummyhash2",
+      "email": "sales1@example.com",
+      "role": "salesperson",
+      "blocked": false,
+      "is_superuser": false,
+      "is_staff": false
+    }
+  },
+  {
+    "model": "main.customer",
+    "pk": 2,
+    "fields": {
+      "name": "Beta LLC",
+      "email": "beta@example.com",
+      "phone": "5551234567",
+      "credit_limit": "5000.00",
+      "address": "789 Beta Ave",
+      "lat": "34.052235",
+      "lon": "-118.243683",
+      "city": "Los Angeles",
+      "state": "CA",
+      "country": "USA",
+      "postal_code": "90001",
+      "location_verified": false,
+      "created_at": "2025-08-21T11:00:00Z",
+      "updated_at": "2025-08-21T11:30:00Z",
+      "current_balance": "2500.00"
+    }
+  },
+  {
+    "model": "main.supplier",
+    "pk": 2,
+    "fields": {
+      "name": "West Coast Supplies",
+      "email": "wcs@example.com",
+      "phone": "5559876543",
+      "address": "321 West St",
+      "credit_limit": "15000.00",
+      "created_at": "2025-08-21T11:00:00Z",
+      "updated_at": "2025-08-21T11:30:00Z",
+      "current_balance": "7000.00"
+    }
+  },
+  {
+    "model": "main.vatsettings",
+    "pk": 2,
+    "fields": {
+      "category": "Reduced",
+      "rate": "5.00"
+    }
+  },
+  {
+    "model": "main.product",
+    "pk": "33333333-3333-3333-3333-333333333333",
+    "fields": {
+      "code": "P002",
+      "name": "Gadget",
+      "unit_price": "80.00",
+      "unit_cost": "60.00",
+      "vat_category": 2,
+      "is_active": true,
+      "created_at": "2025-08-21T11:00:00Z",
+      "updated_at": "2025-08-21T11:30:00Z"
+    }
+  },
+  {
+    "model": "audit.auditlog",
+    "pk": "44444444-4444-4444-4444-444444444444",
+    "fields": {
+      "user": "22222222-2222-2222-2222-222222222222",
+      "action": "UPDATE",
+      "model_name": "Supplier",
+      "object_id": "2",
+      "timestamp": "2025-08-21T11:10:00Z",
+      "changes": {"field": "credit_limit", "old": "10000.00", "new": "15000.00"}
+    }
+  },
+  {
+    "model": "transactions.salesorder",
+    "pk": "55555555-5555-5555-5555-555555555556",
+    "fields": {
+      "order_number": "SO-20250821-003",
+      "customer": 2,
+      "order_date": "2025-08-21",
+      "status": "draft",
+      "subtotal": "160.00",
+      "vat_total": "8.00",
+      "grand_total": "168.00",
+      "profit": "40.00",
+      "prices_include_vat": true,
+      "created_at": "2025-08-21T11:00:00Z",
+      "updated_at": "2025-08-21T11:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.orderlineitem",
+    "pk": "66666666-6666-6666-6666-666666666667",
+    "fields": {
+      "sales_order": "55555555-5555-5555-5555-555555555556",
+      "product": "33333333-3333-3333-3333-333333333333",
+      "quantity": 2,
+      "unit_price": "80.00",
+      "discount": "0.00",
+      "line_total": "160.00",
+      "created_at": "2025-08-21T11:00:00Z",
+      "updated_at": "2025-08-21T11:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.purchaseorder",
+    "pk": "77777777-7777-7777-7777-777777777778",
+    "fields": {
+      "order_number": "PO-20250821-003",
+      "supplier": 2,
+      "order_date": "2025-08-21",
+      "status": "received",
+      "subtotal": "120.00",
+      "vat_total": "6.00",
+      "grand_total": "126.00",
+      "prices_include_vat": true,
+      "created_at": "2025-08-21T11:00:00Z",
+      "updated_at": "2025-08-21T11:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.purchaseorderlineitem",
+    "pk": "88888888-8888-8888-8888-888888888889",
+    "fields": {
+      "purchase_order": "77777777-7777-7777-7777-777777777778",
+      "product": "33333333-3333-3333-3333-333333333333",
+      "quantity": 2,
+      "unit_cost": "60.00",
+      "discount": "0.00",
+      "line_total": "120.00",
+      "created_at": "2025-08-21T11:00:00Z",
+      "updated_at": "2025-08-21T11:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.invoice",
+    "pk": "99999999-9999-9999-9999-999999999990",
+    "fields": {
+      "sales_order": "55555555-5555-5555-5555-555555555556",
+      "invoice_no": "INV-20250821-003",
+      "issue_date": "2025-08-21",
+      "due_date": "2025-09-21",
+      "amount_due": "168.00",
+      "paid_amount": "0.00",
+      "status": "draft",
+      "created_at": "2025-08-21T11:00:00Z",
+      "updated_at": "2025-08-21T11:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.payment",
+    "pk": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1",
+    "fields": {
+      "invoice": "99999999-9999-9999-9999-999999999990",
+      "amount": "168.00",
+      "paid_on": "2025-08-21",
+      "mode": "bank",
+      "created_at": "2025-08-21T11:00:00Z",
+      "updated_at": "2025-08-21T11:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.route",
+    "pk": "bbbbbbb1-bbbb-bbbb-bbbb-bbbbbbbbbbbc",
+    "fields": {
+      "route_number": "RT-20250821-003",
+      "salesperson": "22222222-2222-2222-2222-222222222222",
+      "name": "West Route",
+      "date": "2025-08-21",
+      "start_time": "10:00:00",
+      "end_time": "18:00:00",
+      "created_at": "2025-08-21T11:00:00Z",
+      "updated_at": "2025-08-21T11:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.routevisit",
+    "pk": "ccccccc2-cccc-cccc-cccc-cccccccccccd",
+    "fields": {
+      "route": "bbbbbbb1-bbbb-bbbb-bbbb-bbbbbbbbbbbc",
+      "customer": 2,
+      "check_in": "2025-08-21T11:30:00Z",
+      "check_out": "2025-08-21T12:00:00Z",
+      "lat": "34.052235",
+      "lon": "-118.243683",
+      "status": "planned",
+      "notes": "Visit scheduled",
+      "payment_collected": false,
+      "payment_amount": "0.00",
+      "issues_reported": "None",
+      "visit_duration_minutes": 30,
+      "created_at": "2025-08-21T11:00:00Z",
+      "updated_at": "2025-08-21T11:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.routelocationping",
+    "pk": "ddddddd3-dddd-dddd-dddd-dddddddddddd",
+    "fields": {
+      "route": "bbbbbbb1-bbbb-bbbb-bbbb-bbbbbbbbbbbc",
+      "visit": "ccccccc2-cccc-cccc-cccc-cccccccccccd",
+      "lat": "34.052235000000000",
+      "lon": "-118.243683000000000",
+      "accuracy_meters": "3.0",
+      "speed_mps": "1.2",
+      "heading_degrees": "180.0",
+      "created_at": "2025-08-21T11:00:00Z",
+      "updated_at": "2025-08-21T11:30:00Z"
+    }
+  }
+]

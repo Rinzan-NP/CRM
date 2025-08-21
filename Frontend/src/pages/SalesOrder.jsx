@@ -27,19 +27,21 @@ import {
     X
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import Loader from '../components/Common/Loader';
 
 const SalesOrders = () => {
-    const { salesOrders } = useSelector(
-        (state) => state.salesOrders
-    );
-    const { products } = useSelector(
-        (state) => state.products
-    );
-
-    
-    const { customers } = useSelector(
-        (state) => state.customers
-    );
+    const {
+        salesOrders,
+        loading: salesOrdersLoading
+    } = useSelector((state) => state.salesOrders);
+    const {
+        products,
+        loading: productsLoading
+    } = useSelector((state) => state.products);
+    const {
+        customers,
+        loading: customersLoading
+    } = useSelector((state) => state.customers);
     const dispatch = useDispatch();
     const [salesOrder, setSalesOrder] = useState({
         customer: "",
@@ -84,6 +86,11 @@ const SalesOrders = () => {
             }, 100); // Small delay to ensure form is rendered
         }
     }, [showForm]);
+
+    // Show loader if any of the slices are loading
+    if (salesOrdersLoading || productsLoading || customersLoading) {
+        return <Loader />;
+    }
 
     // Helper function to get customer name by ID
     const getCustomerName = (customerId) => {

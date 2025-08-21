@@ -16,6 +16,8 @@ from .views import (
     SalesVsPurchaseReportView,
     RouteLocationPingViewSet,
     VATReportView,
+    SalesOrderReportView,
+    PurchaseOrderReportView,
 )
 
 router = DefaultRouter()
@@ -38,5 +40,7 @@ urlpatterns = [
     path('customers/<customer_id>/orders/', CustomerSalesOrdersView.as_view(), name='customer-orders'),
     path('customers/<customer_id>/invoices/', CustomerInvoicesView.as_view(), name='customer-invoices'),
     path('customers/<customer_id>/summary/', CustomerSummaryView.as_view(), name='customer-summary'),
+    path('sales-order-report/', SalesOrderReportView.as_view(), name='sales-order-report'),
+    path('purchase-order-report/', PurchaseOrderReportView.as_view(), name='purchase-order-report'),
         
 ]

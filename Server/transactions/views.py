@@ -1,8 +1,47 @@
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.db.models import Sum, Count
+from .models import SalesOrder, PurchaseOrder
+
+# Sales Order Report API
+class SalesOrderReportView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        start = request.GET.get('start')
+        end = request.GET.get('end')
+        qs = SalesOrder.objects.all()
+        if start and end:
+            qs = qs.filter(order_date__gte=start, order_date__lte=end)
+        data = qs.aggregate(
+            total_sales=Sum('grand_total'),
+            total_profit=Sum('profit'),
+            order_count=Count('id')
+        )
+        return Response(data)
+
+# Purchase Order Report API
+class PurchaseOrderReportView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        start = request.GET.get('start')
+        end = request.GET.get('end')
+        qs = PurchaseOrder.objects.all()
+        if start and end:
+            qs = qs.filter(order_date__gte=start, order_date__lte=end)
+        data = qs.aggregate(
+            total_purchases=Sum('grand_total'),
+            order_count=Count('id')
+        )
+        return Response(data)
+from collections import defaultdict
+from decimal import Decimal
+from django.db.models import DecimalField
 from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework import generics
 from rest_framework import status
-from django.db.models import Sum, Count, Avg
+from django.db.models import Sum, Count, Avg, F, Case, When
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, BasePermission
@@ -10,7 +49,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from main.models import Customer
-from .models import Invoice, Payment, PurchaseOrder, Route, RouteVisit, SalesOrder, RouteLocationPing
+from .models import Invoice, OrderLineItem, Payment, PurchaseOrder, Route, RouteVisit, SalesOrder, RouteLocationPing
 from .serializers import (
     InvoiceSerializer, PaymentSerializer, PurchaseOrderSerializer,
     RouteSerializer, RouteVisitSerializer, SalesOrderSerializer,
@@ -826,55 +865,84 @@ class VATReportView(APIView):
     Returns FTA-compliant VAT summary.
     """
     permission_classes = [IsAuthenticated]
-
+    
     def get(self, request, *args, **kwargs):
+        # Parse and validate date parameters
         start = parse_date(request.GET.get("start", ""))
         end = parse_date(request.GET.get("end", ""))
+        
         if not (start and end):
             return Response(
                 {"detail": "start & end query parameters are required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-        # Get invoices in the date range
-        invoices = Invoice.objects.filter(
-            issue_date__gte=start,
-            issue_date__lte=end
-        ).select_related('sales_order')
-
+        
+        # Handle VAT-inclusive vs exclusive pricing logic
+        line_items = (
+            OrderLineItem.objects
+            .select_related('product__vat_category', 'sales_order')
+            .filter(
+                sales_order__invoice__issue_date__gte=start,
+                sales_order__invoice__issue_date__lte=end
+            )
+            .annotate(
+                vat_rate=F('product__vat_category__rate'),
+                vat_category=F('product__vat_category__category'),
+                prices_include_vat=F('sales_order__prices_include_vat'),
+                # Calculate net amount and VAT based on pricing model
+                net_amount=Case(
+                    # When prices include VAT: net = gross / (1 + rate/100)
+                    When(
+                        sales_order__prices_include_vat=True,
+                        product__vat_category__rate__gt=0,
+                        then=F('line_total') / (1 + F('product__vat_category__rate') / 100)
+                    ),
+                    # When prices exclude VAT or rate is 0: net = gross
+                    default=F('line_total'),
+                    output_field=DecimalField(max_digits=12, decimal_places=2)
+                ),
+                vat_amount=Case(
+                    # When prices include VAT: vat = gross - net
+                    When(
+                        sales_order__prices_include_vat=True,
+                        product__vat_category__rate__gt=0,
+                        then=F('line_total') - (F('line_total') / (1 + F('product__vat_category__rate') / 100))
+                    ),
+                    # When prices exclude VAT: vat = net * rate/100
+                    When(
+                        product__vat_category__rate__isnull=False,
+                        then=F('line_total') * F('product__vat_category__rate') / 100
+                    ),
+                    default=Decimal('0.00'),
+                    output_field=DecimalField(max_digits=12, decimal_places=2)
+                )
+            )
+            .values('vat_category', 'net_amount', 'vat_amount')
+        )
+        
+        # Initialize report structure
         report = {
             "period_start": str(start),
             "period_end": str(end),
-            "standard_sales": 0.0,
-            "standard_vat": 0.0,
-            "zero_sales": 0.0,
-            "zero_vat": 0.0,
-            "exempt_sales": 0.0,
-            "exempt_vat": 0.0,
         }
-
-        for invoice in invoices:
-            sales_order = invoice.sales_order
-            # Calculate VAT by category for each line item
-            for line_item in sales_order.line_items.select_related('product__vat_category'):
-                category = line_item.product.vat_category.category.lower()
-                line_total = float(line_item.line_total)
-                vat_rate = line_item.product.vat_category.rate
-                vat_amount = line_total * float(vat_rate) / 100
-
-                if 'standard' in category:
-                    report["standard_sales"] += line_total
-                    report["standard_vat"] += vat_amount
-                elif 'zero' in category:
-                    report["zero_sales"] += line_total
-                    report["zero_vat"] += vat_amount
-                elif 'exempt' in category:
-                    report["exempt_sales"] += line_total
-                    report["exempt_vat"] += vat_amount
-
+        
+        # Use defaultdict for cleaner aggregation
+        category_totals = defaultdict(lambda: {"sales": Decimal('0.00'), "vat": Decimal('0.00')})
+        
+        # Aggregate data efficiently
+        for item in line_items:
+            category = item['vat_category'] or 'uncategorized'
+            category_totals[category]["sales"] += Decimal(str(item['net_amount'] or 0))
+            category_totals[category]["vat"] += Decimal(str(item['vat_amount'] or 0))
+        
+        # Convert to the expected format and ensure float conversion for JSON serialization
+        for category, totals in category_totals.items():
+            report[category] = {
+                "sales": float(totals["sales"]),
+                "vat": float(totals["vat"])
+            }
+        
         return Response(report, status=status.HTTP_200_OK)
-    
-
 
 class SalesVsPurchaseReportView(APIView):
     """Sales vs Purchase comparison report"""
@@ -903,7 +971,12 @@ class SalesVsPurchaseReportView(APIView):
             total_purchases=Sum('grand_total'),
             order_count=Count('id')
         )
-        
+        print({
+            "period": {"start": start, "end": end},
+            "sales": sales_data,
+            "purchases": purchase_data,
+            "net_profit": (sales_data.get('total_sales', 0) or 0) - (purchase_data.get('total_purchases', 0) or 0)
+        })
         return Response({
             "period": {"start": start, "end": end},
             "sales": sales_data,
