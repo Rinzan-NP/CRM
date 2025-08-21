@@ -12,6 +12,7 @@ import routesReducer from './routesSlice';
 import routeVisitsReducer from './routeVisitsSlice';
 import auditlogsReducer from './auditLogsSlice';
 import salesPersonsReducer from './salesPersonSlice';
+import userReducer from './usersSlice'
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -26,5 +27,6 @@ export const store = configureStore({
     routeVisits: routeVisitsReducer,
     auditLogs: auditlogsReducer,
     salesPersons: salesPersonsReducer,
+    users: userReducer
   },
 });

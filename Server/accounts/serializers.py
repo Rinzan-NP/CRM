@@ -30,3 +30,10 @@ class SalesPersonSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ("id", "email", "role")
+
+
+class UserSerializer(serializers.ModelSerializer):
+    date = serializers.DateTimeField(source="date_joined", read_only=True,format="%d-%m-%Y %H:%M")
+    class Meta:
+        model = User
+        fields = ("email", "role","blocked","date","id")

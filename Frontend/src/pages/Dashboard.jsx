@@ -7,6 +7,11 @@ const Dashboard = () => {
 
   // Define all possible menu items with role restrictions
   const allMenuItems = [
+    // {
+    //   title: "Users",
+    //   description: "Manage user accounts",
+    //   path: "/main/users",
+    // },
     { 
       title: "Customers", 
       description: "Manage client relationships",

@@ -1,4 +1,4 @@
-// src/pages/Customers.jsx
+// src/pages/Customers.jsx - Responsive Header Section
 import React, { useState, useEffect } from 'react';
 import { FiPlus, FiMap, FiList, FiUsers, FiMapPin } from 'react-icons/fi';
 import CustomerForm from '../components/Customers/CustomerForm';
@@ -133,91 +133,124 @@ const Customers = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Customers</h1>
-              <p className="mt-2 text-gray-600">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+        {/* Header - Redesigned for Better Responsiveness */}
+        <div className="mb-6 sm:mb-8">
+          {/* Title and Description */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 truncate">
+                Customers
+              </h1>
+              <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">
                 Manage your customer database and locations
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              {/* View Toggle */}
-              <div className="flex bg-white rounded-lg shadow-sm border p-1">
+            
+            {/* Action Buttons - Mobile Responsive */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+              {/* View Toggle - Full width on mobile */}
+              <div className="flex bg-white rounded-lg shadow-sm border p-1 w-full sm:w-auto">
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-1 sm:gap-2 ${
                     viewMode === 'list'
                       ? 'bg-blue-100 text-blue-700'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  <FiList className="inline mr-2" />
-                  List View
+                  <FiList className="h-4 w-4" />
+                  <span className="hidden xs:inline">List</span>
                 </button>
                 <button
                   onClick={() => setViewMode('map')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-1 sm:gap-2 ${
                     viewMode === 'map'
                       ? 'bg-blue-100 text-blue-700'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  <FiMap className="inline mr-2" />
-                  Map View
+                  <FiMap className="h-4 w-4" />
+                  <span className="hidden xs:inline">Map</span>
                 </button>
               </div>
 
-              {/* Add Customer Button */}
+              {/* Add Customer Button - Full width on mobile */}
               <button
                 onClick={() => setShowForm(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2"
+                className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 font-medium"
               >
                 <FiPlus className="h-4 w-4" />
-                Add Customer
+                <span>Add Customer</span>
               </button>
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-lg shadow-sm border">
+          {/* Stats Cards - Responsive Grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {/* Total Customers */}
+            <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
               <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <FiUsers className="h-6 w-6 text-blue-600" />
+                <div className="p-2 bg-blue-100 rounded-lg flex-shrink-0">
+                  <FiUsers className="h-4 w-4 sm:h-6 sm:w-6 text-blue-600" />
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Customers</p>
-                  <p className="text-2xl font-bold text-gray-900">{customers.length}</p>
+                <div className="ml-3 sm:ml-4 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">
+                    Total Customers
+                  </p>
+                  <p className="text-lg sm:text-2xl font-bold text-gray-900">
+                    {customers.length}
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-lg shadow-sm border">
+            {/* With Locations */}
+            <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
               <div className="flex items-center">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <FiMapPin className="h-6 w-6 text-green-600" />
+                <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
+                  <FiMapPin className="h-4 w-4 sm:h-6 sm:w-6 text-green-600" />
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">With Locations</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                <div className="ml-3 sm:ml-4 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">
+                    With Locations
+                  </p>
+                  <p className="text-lg sm:text-2xl font-bold text-gray-900">
                     {customers.filter(c => c.lat && c.lon).length}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-lg shadow-sm border">
+            {/* No Location */}
+            <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
               <div className="flex items-center">
-                <div className="p-2 bg-gray-100 rounded-lg">
-                  <FiMapPin className="h-6 w-6 text-gray-600" />
+                <div className="p-2 bg-gray-100 rounded-lg flex-shrink-0">
+                  <FiMapPin className="h-4 w-4 sm:h-6 sm:w-6 text-gray-600" />
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">No Location</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                <div className="ml-3 sm:ml-4 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">
+                    No Location
+                  </p>
+                  <p className="text-lg sm:text-2xl font-bold text-gray-900">
                     {customers.filter(c => !c.lat && !c.lon).length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Stats Card - Hidden on mobile, shown on larger screens */}
+            <div className="hidden lg:block bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
+              <div className="flex items-center">
+                <div className="p-2 bg-purple-100 rounded-lg flex-shrink-0">
+                  <FiUsers className="h-4 w-4 sm:h-6 sm:w-6 text-purple-600" />
+                </div>
+                <div className="ml-3 sm:ml-4 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">
+                    Active
+                  </p>
+                  <p className="text-lg sm:text-2xl font-bold text-gray-900">
+                    {customers.filter(c => c.is_active !== false).length}
                   </p>
                 </div>
               </div>

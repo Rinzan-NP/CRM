@@ -3,6 +3,7 @@ import { lazy, Suspense } from "react";
 import NotFound from "../pages/NotFound";
 import PrivateRouter from "./PrivateRouter";
 import PublicRouter from "./PublicRouter";
+import { path } from "framer-motion/client";
 
 // Lazy load components for better performance
 const LoginScreen = lazy(() => import("../pages/Login"));
@@ -20,6 +21,7 @@ const RouteLiveTracker = lazy(() => import("../pages/RouteLiveTracker"));
 const AuditLogs = lazy(() => import("../pages/AuditLogs")); // Fixed typo: AuditLoges -> AuditLogs
 const Reports = lazy(() => import("../pages/Reports"));
 const CustomerDetail = lazy(() => import("../pages/CustomerDetail")); // Added CustomerDetail page
+const Users = lazy(() => import("../pages/UserManagement")); // Added Users page
 
 // Loading component for suspense fallback
 const LoadingSpinner = () => (
@@ -66,6 +68,11 @@ const routeConfig = [
   {
     path: "/main/customers",
     component: Customers,
+    isPrivate: true
+  },
+  {
+    path: "/main/users",
+    component: Users,
     isPrivate: true
   },
   {

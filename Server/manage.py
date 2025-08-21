@@ -20,3 +20,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+from django.core.wsgi import get_wsgi_application
+app = get_wsgi_application()

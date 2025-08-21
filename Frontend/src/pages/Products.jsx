@@ -223,17 +223,7 @@ const Products = () => {
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Quick Actions</h3>
-            <div className="space-y-3">
-              <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors">
-                Generate Next Product
-              </button>
-              <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 transition-colors">
-                Export Products (CSV)
-              </button>
-            </div>
-          </div> */}
+         
         </div>
 
         <DataTable
@@ -357,12 +347,47 @@ const Products = () => {
         </form>
       </Modal>
 
-      <Modal isOpen={isVatModalOpen} onClose={() => setIsVatModalOpen(false)} title={editingVat ? (editingVat.id ? 'Edit VAT Category' : 'Create New VAT Category') : 'Create New VAT Category'}>
-        <VatForm
-          edit={editingVat}
-          onDone={() => { setIsVatModalOpen(false); setEditingVat(null); }}
-          onSubmit={editingVat && editingVat.id ? handleUpdateVatCategory : handleCreateVatCategory}
-        />
+      <Modal isOpen={isVatModalOpen} onClose={() => { setIsVatModalOpen(false); setEditingVat(null); }} title={editingVat && editingVat.id ? 'Edit VAT Category' : 'Create New VAT Category'} size="md">
+        <form onSubmit={editingVat && editingVat.id ? handleUpdateVatCategory : handleCreateVatCategory} className="space-y-6">
+          <div className="grid grid-cols-1 gap-6">
+            <FormField label="Category Name" required>
+              <input
+                type="text"
+                name="category"
+                required
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                value={editingVat?.category || ''}
+                onChange={handleVatInputChange}
+              />
+            </FormField>
+            <FormField label="Rate (%)" required>
+              <input
+                type="number"
+                step="0.01"
+                name="rate"
+                required
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                value={editingVat?.rate || ''}
+                onChange={handleVatInputChange}
+              />
+            </FormField>
+          </div>
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => { setIsVatModalOpen(false); setEditingVat(null); }}
+              className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+            >
+              {editingVat && editingVat.id ? 'Update VAT Category' : 'Create VAT Category'}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );
