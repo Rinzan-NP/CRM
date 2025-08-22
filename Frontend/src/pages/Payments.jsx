@@ -190,7 +190,7 @@ const Payments = () => {
       outstanding = parseFloat(invoice.amount_due || 0) - parseFloat(invoice.paid_amount || 0);
     }
     
-    return `${invoice.invoice_no || `Invoice ${invoice.id}`} - ${getCustomerName(invoice)} - Outstanding: $${outstanding.toFixed(2)}`;
+    return `${invoice.invoice_no || `Invoice ${invoice.id}`} - ${getCustomerName(invoice)} - Outstanding: AED ${outstanding.toFixed(2)}`;
   };
 
   const formatDate = (dateString) => {
@@ -266,7 +266,7 @@ const Payments = () => {
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatsCard title="Total Payments" value={payments.length} icon={DollarIcon} color="emerald" />
           <StatsCard title="Outstanding Invoices" value={availableInvoices.length} icon={DollarIcon} color="rose" />
-          <StatsCard title="Avg Payment" value={`$${(payments.reduce((s,p)=>s+parseFloat(p.amount||0),0)/(payments.length||1)).toFixed(2)}`} icon={DollarIcon} color="amber" />
+          <StatsCard title="Avg Payment" value={`AED ${(payments.reduce((s,p)=>s+parseFloat(p.amount||0),0)/(payments.length||1)).toFixed(2)}`} icon={DollarIcon} color="amber" />
         </div>
 
         {/* Payments Table */}
@@ -313,7 +313,7 @@ const Payments = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-semibold text-green-600">
-                            ${formatCurrency(payment.amount)}
+                            AED {formatCurrency(payment.amount)}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

@@ -46,7 +46,7 @@ const DataTable = ({
     <div className={className}>
       {/* Search Bar */}
       {searchable && (
-        <div className="mb-4">
+        <div className="mb-4 p-3">
           <div className="relative">
             <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <input

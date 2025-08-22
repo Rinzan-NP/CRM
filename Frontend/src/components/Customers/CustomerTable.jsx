@@ -27,15 +27,15 @@ const CustomerTable = ({ customers, onEdit, onDelete, onView, onGeocode, onSetCo
     alert('Please edit the customer and use the "Pick Location on Map" feature for better location selection.');
   };
 
-  const getLocationStatus = (customer) => {
-    if (customer.location_verified) {
-      return { text: 'Verified', color: 'green', icon: <FiCheckCircle className="h-4 w-4" /> };
-    } else if (customer.lat && customer.lon) {
-      return { text: 'Coordinates Set', color: 'blue', icon: <FiTarget className="h-4 w-4" /> };
-    } else {
-      return { text: 'No Location', color: 'gray', icon: <FiXCircle className="h-4 w-4" /> };
-    }
-  };
+  // const getLocationStatus = (customer) => {
+  //   if (customer.location_verified) {
+  //     return { text: 'Verified', color: 'green', icon: <FiCheckCircle className="h-4 w-4" /> };
+  //   } else if (customer.lat && customer.lon) {
+  //     return { text: 'Coordinates Set', color: 'blue', icon: <FiTarget className="h-4 w-4" /> };
+  //   } else {
+  //     return { text: 'No Location', color: 'gray', icon: <FiXCircle className="h-4 w-4" /> };
+  //   }
+  // };
 
   const columns = [
     {
@@ -62,15 +62,15 @@ const CustomerTable = ({ customers, onEdit, onDelete, onView, onGeocode, onSetCo
       header: 'Location',
       accessor: 'location',
       cell: (row) => {
-        const locationStatus = getLocationStatus(row);
+       
         return (
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
+            {/* <div className="flex items-center gap-2">
               {locationStatus.icon}
               <Badge color={locationStatus.color} size="sm">
                 {locationStatus.text}
               </Badge>
-            </div>
+            </div> */}
             
             {row.lat && row.lon ? (
               <div className="text-xs text-gray-600">
@@ -166,20 +166,7 @@ const CustomerTable = ({ customers, onEdit, onDelete, onView, onGeocode, onSetCo
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">Customers</h3>
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            {/* <span className="flex items-center gap-1">
-              <FiCheckCircle className="h-4 w-4 text-green-500" />
-              {customers.filter(c => c.location_verified).length} Verified
-            </span> */}
-            <span className="flex items-center gap-1">
-              <FiTarget className="h-4 w-4 text-blue-500" />
-              {customers.filter(c => c.lat && c.lon && !c.location_verified).length} Coordinates Set
-            </span>
-            <span className="flex items-center gap-1">
-              <FiXCircle className="h-4 w-4 text-gray-400" />
-              {customers.filter(c => !c.lat && !c.lon).length} No Location
-            </span>
-          </div>
+         
         </div>
       </div>
 

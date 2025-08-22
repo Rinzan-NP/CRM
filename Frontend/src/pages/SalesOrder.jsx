@@ -299,19 +299,19 @@ const SalesOrders = () => {
         {
             header: "Subtotal",
             accessor: "subtotal",
-            cell: (row) => `$${formatCurrency(row.subtotal)}`,
+            cell: (row) => `AED${formatCurrency(row.subtotal)}`,
         },
         {
             header: "VAT",
             accessor: "vat_total",
-            cell: (row) => `$${formatCurrency(row.vat_total)}`,
+            cell: (row) => `AED${formatCurrency(row.vat_total)}`,
         },
         {
             header: "Grand Total",
             accessor: "grand_total",
             cell: (row) => (
                 <span className="font-semibold text-slate-900">
-                    ${formatCurrency(row.grand_total)}
+                    AED{formatCurrency(row.grand_total)}
                 </span>
             ),
         },
@@ -362,9 +362,9 @@ const SalesOrders = () => {
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <StatsCard title="Total Orders" value={salesOrders.length} icon={ShoppingCart} color="indigo" />
-                    <StatsCard title="Total Revenue" value={`$${salesOrders.reduce((s,o)=>s+parseFloat(o.grand_total||0),0).toFixed(2)}`} icon={DollarSign} color="emerald" />
+                    <StatsCard title="Total Revenue" value={`AED ${salesOrders.reduce((s,o)=>s+parseFloat(o.grand_total||0),0).toFixed(2)}`} icon={DollarSign} color="emerald" />
                     <StatsCard title="Active Customers" value={new Set(salesOrders.map(o => o.customer)).size} icon={Users} color="sky" />
-                    <StatsCard title="Avg Order Value" value={`$${(salesOrders.reduce((s,o)=>s+parseFloat(o.grand_total||0),0)/(salesOrders.length||1)).toFixed(2)}`} icon={Package} color="violet" />
+                    <StatsCard title="Avg Order Value" value={`AED ${(salesOrders.reduce((s,o)=>s+parseFloat(o.grand_total||0),0)/(salesOrders.length||1)).toFixed(2)}`} icon={Package} color="violet" />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

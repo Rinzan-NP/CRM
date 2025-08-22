@@ -1,63 +1,107 @@
+// SalesOrderReportSection.jsx
 import React from 'react';
+import { FiTrendingUp, FiDollarSign, FiShoppingBag } from 'react-icons/fi';
 
 const SalesOrderReportSection = ({ report }) => {
   if (!report) return null;
   
   const { total_sales, total_profit, order_count } = report;
   
+  // Format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-AE', {
+      style: 'currency',
+      currency: 'AED',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+  
   return (
-    <section className="bg-gradient-to-br from-white  rounded-2xl shadow-lg p-6 mb-6 border border-indigo-100">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-indigo-800">Sales Overview</h2>
-        
-      </div>
-      
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        {/* Total Sales Card */}
-        <div className="bg-white rounded-xl p-5 shadow-md border-l-4 hover:shadow-lg transition-shadow duration-300">
-          <div className="flex justify-between items-start mb-2">
-            <div className="text-sm font-medium text-gray-500">Total Sales</div>
-            <div className="p-2 bg-indigo-100 rounded-lg">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-b border-gray-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-3">
+              <div className="p-2 bg-green-100 rounded-xl">
+                <FiTrendingUp className="text-green-600" size={20} />
+              </div>
+              Sales Overview
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">Comprehensive sales performance metrics</p>
           </div>
-          <div className="text-2xl font-bold text-indigo-800 mb-1">{total_sales}</div>
-          
-        </div>
-        
-        {/* Total Profit Card */}
-        <div className="bg-white rounded-xl p-5 shadow-md border-l-4  hover:shadow-lg transition-shadow duration-300">
-          <div className="flex justify-between items-start mb-2">
-            <div className="text-sm font-medium text-gray-500">Total Profit</div>
-            <div className="p-2 bg-green-100 rounded-lg">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8l3 5m0 0l3-5m-3 5v4m-3-5h6m-6 3h6m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-green-800 mb-1">{total_profit}</div>
-         
-        </div>
-        
-        {/* Order Count Card */}
-        <div className="bg-white rounded-xl p-5 shadow-md border-l-4  hover:shadow-lg transition-shadow duration-300">
-          <div className="flex justify-between items-start mb-2">
-            <div className="text-sm font-medium text-gray-500">Order Count</div>
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-              </svg>
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-purple-800 mb-1">{order_count}</div>
-          
         </div>
       </div>
       
-     
-    </section>
+      <div className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Total Sales Card */}
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-5 border border-green-100 hover:shadow-md transition-all duration-300">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 bg-green-100 rounded-xl">
+                <FiDollarSign className="text-green-600" size={20} />
+              </div>
+              <div className="text-right">
+                <div className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                  Revenue
+                </div>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium text-gray-600">Total Sales</h3>
+              <p className="text-2xl font-bold text-green-700">{formatCurrency(total_sales)}</p>
+              <p className="text-xs text-gray-500 flex items-center">
+                <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+                Gross revenue
+              </p>
+            </div>
+          </div>
+          
+          {/* Total Profit Card */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100 hover:shadow-md transition-all duration-300">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 bg-blue-100 rounded-xl">
+                <FiTrendingUp className="text-blue-600" size={20} />
+              </div>
+              <div className="text-right">
+                <div className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                  Profit
+                </div>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium text-gray-600">Total Profit</h3>
+              <p className="text-2xl font-bold text-blue-700">{formatCurrency(total_profit)}</p>
+              <p className="text-xs text-gray-500 flex items-center">
+                <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                Net profit margin
+              </p>
+            </div>
+          </div>
+          
+          {/* Order Count Card */}
+          <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-5 border border-purple-100 hover:shadow-md transition-all duration-300">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 bg-purple-100 rounded-xl">
+                <FiShoppingBag className="text-purple-600" size={20} />
+              </div>
+              <div className="text-right">
+                <div className="text-xs font-medium text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
+                  Orders
+                </div>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium text-gray-600">Order Count</h3>
+              <p className="text-2xl font-bold text-purple-700">{order_count}</p>
+              <p className="text-xs text-gray-500 flex items-center">
+                <span className="w-2 h-2 bg-purple-400 rounded-full mr-2"></span>
+                Total orders
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
