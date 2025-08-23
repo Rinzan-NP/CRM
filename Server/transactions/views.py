@@ -859,6 +859,244 @@ class RouteLocationPingViewSet(viewsets.ModelViewSet):
             
         except Route.DoesNotExist:
             return Response({'detail': 'Route not found'}, status=404)
+
+    #rolebased location tracking aakan vendi admin monitoring only salesperson tracking
+    @action(detail=False, methods=['post'])
+    def start_route_monitoring(self, request):
+        """Start monitoring a route (admin-only, no GPS tracking)"""
+        route_id = request.data.get('route_id')
+        if not route_id:
+            return Response({'detail': 'route_id is required'}, status=400)
+        
+        try:
+            route = Route.objects.get(id=route_id)
+            user = request.user
+            
+            # Only allow admin users to monitor
+            if hasattr(user, 'role') and user.role != 'admin':
+                return Response({'detail': 'Only admin users can monitor routes'}, status=403)
+            
+            # Check if the route has an active salesperson tracking session
+            from django.utils import timezone
+            recent_pings = RouteLocationPing.objects.filter(
+                route=route,
+                created_at__gte=timezone.now() - timezone.timedelta(hours=24)
+            ).order_by('-created_at')
+            
+            monitoring_status = {
+                'message': 'Route monitoring started - watching for updates from salesperson',
+                'route_id': str(route.id),
+                'route_name': route.name,
+                'salesperson': route.salesperson.email if route.salesperson else 'Unknown',
+                'start_time': timezone.now(),
+                'status': 'monitoring',
+                'recent_activity': recent_pings.exists()
+            }
+            
+            if recent_pings.exists():
+                last_ping = recent_pings.first()
+                monitoring_status.update({
+                    'last_ping': last_ping.created_at,
+                    'last_location': {
+                        'lat': float(last_ping.lat),
+                        'lon': float(last_ping.lon)
+                    }
+                })
+            
+            return Response(monitoring_status)
+            
+        except Route.DoesNotExist:
+            return Response({'detail': 'Route not found'}, status=404)
+
+    @action(detail=False, methods=['post'])
+    def stop_route_monitoring(self, request):
+        """Stop monitoring a route"""
+        route_id = request.data.get('route_id')
+        if not route_id:
+            return Response({'detail': 'route_id is required'}, status=400)
+        
+        try:
+            route = Route.objects.get(id=route_id)
+            user = request.user
+            
+            # Only allow admin users to stop monitoring
+            if hasattr(user, 'role') and user.role != 'admin':
+                return Response({'detail': 'Only admin users can stop monitoring'}, status=403)
+            
+            # Get monitoring summary for today
+            from django.utils import timezone
+            today_pings = RouteLocationPing.objects.filter(
+                route=route,
+                created_at__date=timezone.now().date()
+            ).order_by('created_at')
+            
+            summary = {
+                'message': 'Route monitoring stopped',
+                'route_id': str(route.id),
+                'route_name': route.name,
+                'monitoring_summary': {
+                    'ping_count': today_pings.count(),
+                    'monitoring_stopped': timezone.now()
+                }
+            }
+            
+            if today_pings.exists():
+                summary['monitoring_summary'].update({
+                    'first_ping': today_pings.first().created_at,
+                    'last_ping': today_pings.last().created_at,
+                    'salesperson_active': True
+                })
+            else:
+                summary['monitoring_summary']['salesperson_active'] = False
+            
+            return Response(summary)
+            
+        except Route.DoesNotExist:
+            return Response({'detail': 'Route not found'}, status=404)
+
+    @action(detail=False, methods=['get'])
+    def monitoring_status(self, request):
+        """Get current monitoring status for all active routes (admin-only)"""
+        user = request.user
+        
+        # Only allow admin users
+        if hasattr(user, 'role') and user.role != 'admin':
+            return Response({'detail': 'Admin access required'}, status=403)
+        
+        from django.utils import timezone
+        today = timezone.now().date()
+        
+        # Get all routes with activity today
+        active_routes = Route.objects.filter(
+            location_pings__created_at__date=today
+        ).distinct().select_related('salesperson')
+        
+        monitoring_data = []
+        for route in active_routes:
+            recent_pings = route.location_pings.filter(
+                created_at__date=today
+            ).order_by('-created_at')
+            
+            if recent_pings.exists():
+                last_ping = recent_pings.first()
+                first_ping = recent_pings.last()
+                
+                # Check if still active (ping within last 30 minutes)
+                is_active = (timezone.now() - last_ping.created_at).total_seconds() < 1800
+                
+                route_data = {
+                    'route_id': str(route.id),
+                    'route_name': route.name,
+                    'route_number': route.route_number,
+                    'salesperson': route.salesperson.email if route.salesperson else 'Unknown',
+                    'date': route.date,
+                    'is_active': is_active,
+                    'ping_count': recent_pings.count(),
+                    'first_ping': first_ping.created_at,
+                    'last_ping': last_ping.created_at,
+                    'last_location': {
+                        'lat': float(last_ping.lat),
+                        'lon': float(last_ping.lon)
+                    },
+                    'time_since_last_ping': (timezone.now() - last_ping.created_at).total_seconds() / 60  # minutes
+                }
+                
+                monitoring_data.append(route_data)
+        
+        return Response({
+            'monitoring_date': today,
+            'active_routes': len(monitoring_data),
+            'routes': monitoring_data
+        })
+
+    @action(detail=False, methods=['get'])
+    def live_tracking_status(self, request):
+        """Get real-time status of all routes being tracked today"""
+        from django.utils import timezone
+        from django.db.models import Count, Max, Min
+        
+        user = request.user
+        role = getattr(user, 'role', '')
+        
+        today = timezone.now().date()
+        
+        # Base query for routes with pings today
+        routes_query = Route.objects.filter(
+            location_pings__created_at__date=today
+        ).select_related('salesperson').annotate(
+            ping_count=Count('location_pings'),
+            last_ping_time=Max('location_pings__created_at'),
+            first_ping_time=Min('location_pings__created_at')
+        ).distinct()
+        
+        # Apply role-based filtering
+        if role == 'salesperson':
+            routes_query = routes_query.filter(salesperson=user)
+        
+        active_routes = []
+        for route in routes_query:
+            # Get the most recent ping
+            last_ping = route.location_pings.filter(
+                created_at__date=today
+            ).order_by('-created_at').first()
+            
+            if last_ping:
+                # Determine if route is currently active (ping within last 30 minutes)
+                time_since_last = (timezone.now() - last_ping.created_at).total_seconds()
+                is_currently_active = time_since_last < 1800  # 30 minutes
+                
+                # Calculate basic stats
+                total_time = 0
+                if route.first_ping_time and route.last_ping_time:
+                    total_time = (route.last_ping_time - route.first_ping_time).total_seconds() / 3600  # hours
+                
+                route_status = {
+                    'route_id': str(route.id),
+                    'route_name': route.name,
+                    'route_number': route.route_number,
+                    'date': str(route.date),
+                    'salesperson': {
+                        'name': route.salesperson.email if route.salesperson else 'Unknown',
+                        'id': route.salesperson.id if route.salesperson else None
+                    },
+                    'status': {
+                        'is_active': is_currently_active,
+                        'ping_count': route.ping_count,
+                        'first_ping': route.first_ping_time,
+                        'last_ping': route.last_ping_time,
+                        'total_time_hours': round(total_time, 2),
+                        'minutes_since_last_ping': round(time_since_last / 60, 1)
+                    },
+                    'last_location': {
+                        'lat': float(last_ping.lat),
+                        'lon': float(last_ping.lon),
+                        'accuracy': float(last_ping.accuracy_meters) if last_ping.accuracy_meters else None
+                    }
+                }
+                
+                active_routes.append(route_status)
+        
+        # Sort by last ping time (most recent first)
+        active_routes.sort(key=lambda x: x['status']['last_ping'], reverse=True)
+        
+        # Summary statistics
+        total_routes = len(active_routes)
+        currently_active = len([r for r in active_routes if r['status']['is_active']])
+        
+        return Response({
+            'date': today,
+            'summary': {
+                'total_routes_today': total_routes,
+                'currently_active': currently_active,
+                'inactive_routes': total_routes - currently_active
+            },
+            'routes': active_routes,
+            'user_role': role,
+            'last_updated': timezone.now()
+        })
+        
+        
+        
 class VATReportView(APIView):
     """
     GET /api/transactions/vat-report/?start=YYYY-MM-DD&end=YYYY-MM-DD

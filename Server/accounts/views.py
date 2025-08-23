@@ -80,3 +80,19 @@ class UserBlockAndUnblock(APIView):
 
         user.save()
         return Response({"detail": "User status updated"}, status=status.HTTP_200_OK)
+    
+    
+class UserProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        return Response({
+            'id': user.id,
+            'email': user.email,
+            'role': getattr(user, 'role', ''),
+            'first_name': getattr(user, 'first_name', ''),
+            'last_name': getattr(user, 'last_name', ''),
+            'is_staff': user.is_staff,
+            'is_superuser': user.is_superuser,
+        })

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { FiActivity, FiMapPin, FiNavigation, FiTrendingUp, FiClock, FiZap, FiAlertCircle } from 'react-icons/fi';
+import { FiActivity, FiMapPin, FiNavigation, FiTrendingUp, FiClock, FiZap, FiAlertCircle, FiEye } from 'react-icons/fi';
 import api from '../services/api';
 import PageHeader from '../components/layout/PageHeader';
 import Loader from '../components/Common/Loader';
@@ -13,6 +13,7 @@ const RouteLiveTracker = () => {
   const [routes, setRoutes] = useState([]);
   const [pings, setPings] = useState([]);
   const [isTracking, setIsTracking] = useState(false);
+  const [isMonitoring, setIsMonitoring] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [loadingRoutes, setLoadingRoutes] = useState(true);
@@ -24,9 +25,34 @@ const RouteLiveTracker = () => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [lastConfirmedLocation, setLastConfirmedLocation] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [userRole, setUserRole] = useState('');
   
   const watchIdRef = useRef(null);
+  const monitoringIntervalRef = useRef(null);
   const mapRef = useRef(null);
+
+  // Get user role from API or context
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      try {
+        const response = await api.get('/accounts/user/profile/'); // Adjust endpoint as needed
+        setUserRole(response.data.role || '');
+      } catch (e) {
+        console.error('Failed to fetch user role:', e);
+        // Fallback: try to get from localStorage or token
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            setUserRole(payload.role || '');
+          } catch (err) {
+            console.error('Failed to parse token for role:', err);
+          }
+        }
+      }
+    };
+    fetchUserRole();
+  }, []);
 
   // Improved distance calculation using Haversine formula
   const calculateDistance = useCallback((lat1, lon1, lat2, lon2) => {
@@ -149,7 +175,35 @@ const RouteLiveTracker = () => {
     }
   }, [selectedRouteId]);
 
-  // Start route tracking with improved GPS settings and movement detection
+  // Start monitoring for admin users (no GPS tracking)
+  const startMonitoring = useCallback(async () => {
+    if (!selectedRouteId) {
+      setError('Please select a route first');
+      return;
+    }
+
+    try {
+      // Just start backend monitoring session
+      const response = await api.post('/transactions/route-location-pings/start_route_monitoring/', {
+        route_id: selectedRouteId
+      });
+      
+      setInfo('Route monitoring started - watching for GPS updates from salesperson');
+      setIsMonitoring(true);
+      
+      // Set up polling for real-time updates
+      monitoringIntervalRef.current = setInterval(() => {
+        fetchRoutePings();
+        fetchRouteSummary();
+      }, 30000); // Poll every 30 seconds
+      
+    } catch (e) {
+      console.error('Failed to start monitoring:', e);
+      setError('Failed to start monitoring: ' + (e.response?.data?.detail || e.message));
+    }
+  }, [selectedRouteId, fetchRoutePings, fetchRouteSummary]);
+
+  // Start route tracking with improved GPS settings for salesperson
   const startTracking = useCallback(async () => {
     if (!selectedRouteId) {
       setError('Please select a route first');
@@ -261,29 +315,46 @@ const RouteLiveTracker = () => {
     watchIdRef.current = id;
   }, [selectedRouteId, fetchRouteSummary, lastConfirmedLocation, hasMovedSignificantly, isAccurateEnough, calculateDistance, error]);
 
-  // Stop route tracking
+  // Stop tracking/monitoring
   const stopTracking = useCallback(async () => {
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
     
+    if (monitoringIntervalRef.current !== null) {
+      clearInterval(monitoringIntervalRef.current);
+      monitoringIntervalRef.current = null;
+    }
+    
     try {
-      // Stop tracking on backend
-      await api.post('/transactions/route-location-pings/stop_route_tracking/', {
+      const endpoint = userRole === 'admin' ? 'stop_route_monitoring' : 'stop_route_tracking';
+      await api.post(`/transactions/route-location-pings/${endpoint}/`, {
         route_id: selectedRouteId
       });
       
       // Fetch final summary
       await fetchRouteSummary();
-      setInfo('Tracking stopped and summary generated');
+      const action = userRole === 'admin' ? 'monitoring' : 'tracking';
+      setInfo(`${action.charAt(0).toUpperCase() + action.slice(1)} stopped and summary generated`);
     } catch (e) {
-      console.error('Failed to stop tracking:', e);
-      setError('Failed to stop tracking: ' + (e.response?.data?.detail || e.message));
+      console.error('Failed to stop tracking/monitoring:', e);
+      const action = userRole === 'admin' ? 'monitoring' : 'tracking';
+      setError(`Failed to stop ${action}: ` + (e.response?.data?.detail || e.message));
     }
     
     setIsTracking(false);
-  }, [selectedRouteId, fetchRouteSummary]);
+    setIsMonitoring(false);
+  }, [selectedRouteId, fetchRouteSummary, userRole]);
+
+  // Unified start function that chooses based on role
+  const handleStartAction = useCallback(() => {
+    if (userRole === 'admin') {
+      startMonitoring();
+    } else {
+      startTracking();
+    }
+  }, [userRole, startMonitoring, startTracking]);
 
   // Fetch data when route changes
   useEffect(() => {
@@ -302,7 +373,7 @@ const RouteLiveTracker = () => {
 
   // Set up polling for real-time updates
   useEffect(() => {
-    if (isTracking && selectedRouteId) {
+    if ((isTracking || isMonitoring) && selectedRouteId) {
       const interval = setInterval(() => {
         fetchRoutePings();
         fetchRouteSummary();
@@ -310,7 +381,7 @@ const RouteLiveTracker = () => {
       
       return () => clearInterval(interval);
     }
-  }, [isTracking, selectedRouteId, fetchRoutePings, fetchRouteSummary]);
+  }, [isTracking, isMonitoring, selectedRouteId, fetchRoutePings, fetchRouteSummary]);
 
   // Get selected route details
   const selectedRoute = useMemo(() => 
@@ -362,10 +433,10 @@ const RouteLiveTracker = () => {
     return { center, zoom };
   }, [selectedRoute, pings]);
 
-  // Manual ping function
+  // Manual ping function (only for salesperson)
   const sendManualPing = useCallback(async () => {
-    if (!navigator.geolocation || !selectedRouteId) {
-      setError('Geolocation not available or no route selected');
+    if (!navigator.geolocation || !selectedRouteId || userRole === 'admin') {
+      setError('Manual ping not available for admin users');
       return;
     }
 
@@ -403,18 +474,22 @@ const RouteLiveTracker = () => {
       timeout: 10000,
       maximumAge: 30000
     });
-  }, [selectedRouteId, isAccurateEnough, fetchRouteSummary]);
+  }, [selectedRouteId, isAccurateEnough, fetchRouteSummary, userRole]);
 
   if (loadingRoutes && routes.length === 0) {
     return <Loader />;
   }
+
+  const isActive = isTracking || isMonitoring;
+  const actionLabel = userRole === 'admin' ? 'Monitor' : 'Track';
+  const statusLabel = userRole === 'admin' ? 'Monitoring' : 'Tracking';
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <PageHeader
           title="Route Live Tracker"
-          subtitle="Advanced GPS tracking with smart movement detection and real-time optimization analytics"
+          subtitle={`Advanced GPS ${userRole === 'admin' ? 'monitoring' : 'tracking'} with smart movement detection and real-time optimization analytics`}
         />
 
         {/* Controls Panel */}
@@ -440,18 +515,28 @@ const RouteLiveTracker = () => {
                   Salesperson: {selectedRoute.salesperson_name || 'N/A'}
                 </p>
               )}
+              {userRole && (
+                <p className="mt-1 text-xs text-blue-600">
+                  Mode: {userRole === 'admin' ? 'Monitor Only' : 'GPS Tracking'}
+                </p>
+              )}
             </div>
 
-            {/* Tracking Controls */}
+            {/* Tracking/Monitoring Controls */}
             <div className="flex flex-col justify-end">
               <div className="flex gap-2">
-                {!isTracking ? (
+                {!isActive ? (
                   <button
-                    onClick={startTracking}
+                    onClick={handleStartAction}
                     disabled={!selectedRouteId}
-                    className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                    className={`px-6 py-2 text-white rounded-md hover:opacity-90 disabled:opacity-50 flex items-center gap-2 ${
+                      userRole === 'admin' 
+                        ? 'bg-blue-600 hover:bg-blue-700' 
+                        : 'bg-green-600 hover:bg-green-700'
+                    }`}
                   >
-                    <FiActivity /> Start Smart Tracking
+                    {userRole === 'admin' ? <FiEye /> : <FiActivity />}
+                    Start {actionLabel}ing
                   </button>
                 ) : (
                   <>
@@ -459,23 +544,26 @@ const RouteLiveTracker = () => {
                       onClick={stopTracking}
                       className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2"
                     >
-                      <FiActivity /> Stop Tracking
+                      <FiActivity /> Stop {actionLabel}ing
                     </button>
-                    <button
-                      onClick={sendManualPing}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
-                    >
-                      📍 Manual Ping
-                    </button>
+                    {userRole !== 'admin' && (
+                      <button
+                        onClick={sendManualPing}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+                      >
+                        📍 Manual Ping
+                      </button>
+                    )}
                   </>
                 )}
               </div>
-              {isTracking && (
+              {isActive && (
                 <div className="mt-2 space-y-1">
                   <p className="text-sm text-gray-600">
-                    🟢 Smart GPS tracking active
+                    🟢 {statusLabel} active
+                    {userRole === 'admin' && ' (read-only)'}
                   </p>
-                  {currentLocation && lastConfirmedLocation && (
+                  {userRole !== 'admin' && currentLocation && lastConfirmedLocation && (
                     <p className="text-xs text-gray-500">
                       Threshold: {Math.max(20, (currentLocation.accuracy || 25) * 2).toFixed(0)}m
                     </p>
@@ -583,7 +671,7 @@ const RouteLiveTracker = () => {
                   ) : null
                 ))}
 
-                {showRealTime && isTracking && pings.length > 0 && (
+                {showRealTime && isActive && pings.length > 0 && (
                   <Circle
                     center={{ 
                       lat: parseFloat(pings[pings.length - 1].lat), 
@@ -712,7 +800,11 @@ const RouteLiveTracker = () => {
               <h3 className="text-lg font-medium text-blue-800">No GPS Data Available</h3>
             </div>
             <p className="text-blue-700 mt-2">
-              No GPS tracking data found for this route. Start tracking to see route analytics and optimization metrics.
+              No GPS tracking data found for this route. 
+              {userRole === 'admin' 
+                ? ' Wait for the salesperson to start tracking to see route analytics.' 
+                : ' Start tracking to see route analytics and optimization metrics.'
+              }
             </p>
           </div>
         )}
@@ -722,8 +814,8 @@ const RouteLiveTracker = () => {
           <RouteOptimizer selectedRouteId={selectedRouteId} />
         )}
 
-        {/* Customer Visit Logging */}
-        {selectedRouteId && (
+        {/* Customer Visit Logging - Only show for salesperson */}
+        {selectedRouteId && userRole !== 'admin' && (
           <CustomerVisitLogger
             selectedRouteId={selectedRouteId}
             onVisitLogged={(visitData) => {
