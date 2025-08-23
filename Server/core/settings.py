@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'rest_framework',
         "corsheaders",
     "rest_framework_simplejwt",
+    'channels',  # Add Django Channels for WebSocket support
     'accounts',
     'main',
     "transactions",
@@ -91,6 +92,21 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'core.wsgi.application'
+
+# Django Channels Configuration for WebSocket support
+ASGI_APPLICATION = 'core.asgi.application'
+
+# Channel Layers for WebSocket communication
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        # For production, use Redis:
+        # 'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        # 'CONFIG': {
+        #     "hosts": [('127.0.0.1', 6379)],
+        # },
+    },
+}
 
 
 # Database

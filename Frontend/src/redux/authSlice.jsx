@@ -104,7 +104,7 @@ export const refreshToken = createAsyncThunk(
             if (!auth.refresh) {
                 throw new Error("No refresh token available");
             }
-            const response = await api.post("/accounts/token/refresh/", {
+            const response = await api.post("/accounts/refresh/", {
                 refresh: auth.refresh,
             });
             const { access } = response.data;
