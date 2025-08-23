@@ -68,47 +68,57 @@ const RouteOptimizer = ({ selectedRouteId }) => {
     }
   };
 
-  // Calculate additional optimization metrics
+  // Calculate additional optimization metrics with proper null/undefined handling
   const enhancedMetrics = useMemo(() => {
     if (!optimizationData || !routeData?.summary) return null;
 
-    const { efficiency_percentage, actual_distance_km, optimal_distance_km, estimated_fuel_cost } = optimizationData;
+    const { efficiency_percentage, actual_distance_km, optimal_distance_km, estimated_fuel_cost, fuel_consumption_liters } = optimizationData;
     const { total_time_hours, average_speed_kmh, ping_count } = routeData.summary;
 
-    // Safely calculate metrics with fallbacks
-    const safeActualDistance = actual_distance_km || 0;
-    const safeOptimalDistance = optimal_distance_km || 0;
-    const safeTotalTime = total_time_hours || 0;
-    const safeAverageSpeed = average_speed_kmh || 1; // Avoid division by zero
-    const safeFuelCost = estimated_fuel_cost || 0;
+    // Safely handle all values with proper defaults and validation
+    const safeActualDistance = parseFloat(actual_distance_km) || 0;
+    const safeOptimalDistance = parseFloat(optimal_distance_km) || 0;
+    const safeTotalTime = parseFloat(total_time_hours) || 0;
+    const safeAverageSpeed = parseFloat(average_speed_kmh) || 1; // Avoid division by zero
+    const safeFuelCost = parseFloat(estimated_fuel_cost) || 0;
+    const safeFuelConsumption = parseFloat(fuel_consumption_liters) || 0;
+    const safeEfficiency = parseFloat(efficiency_percentage) || 0;
+    const safePingCount = parseInt(ping_count) || 0;
+
+    // Calculate fuel efficiency (L/100km) with proper validation
+    let fuelEfficiency = 0;
+    if (safeActualDistance > 0 && safeFuelConsumption > 0) {
+      fuelEfficiency = (safeFuelConsumption / safeActualDistance) * 100;
+    }
 
     // Calculate time savings (only if we have meaningful data)
     let timeSavings = 0;
     let timeEfficiency = 100;
-    if (safeOptimalDistance > 0 && safeAverageSpeed > 0) {
+    if (safeOptimalDistance > 0 && safeAverageSpeed > 0 && safeTotalTime > 0) {
       const optimalTime = safeOptimalDistance / safeAverageSpeed;
       timeSavings = Math.max(0, safeTotalTime - optimalTime);
       timeEfficiency = Math.min(100, (optimalTime / safeTotalTime) * 100);
     }
 
     // Calculate cost savings
-    const potentialSavings = safeFuelCost * (1 - (efficiency_percentage / 100));
+    const potentialSavings = safeFuelCost * (1 - (safeEfficiency / 100));
     const costPerKm = safeActualDistance > 0 ? safeFuelCost / safeActualDistance : 0;
 
     // Calculate productivity metrics
     const visitsCount = routeInfo?.visits?.length || 0;
     const visitsPerHour = safeTotalTime > 0 ? visitsCount / safeTotalTime : 0;
-    const pingsPerKm = safeActualDistance > 0 ? ping_count / safeActualDistance : 0;
+    const pingsPerKm = safeActualDistance > 0 ? safePingCount / safeActualDistance : 0;
 
     return {
-      timeSavings: timeSavings.toFixed(2),
-      timeEfficiency: timeEfficiency.toFixed(1),
-      potentialSavings: potentialSavings.toFixed(2),
-      costPerKm: costPerKm.toFixed(2),
-      visitsPerHour: visitsPerHour.toFixed(2),
-      pingsPerKm: pingsPerKm.toFixed(1),
+      timeSavings: isFinite(timeSavings) ? timeSavings.toFixed(2) : '0.00',
+      timeEfficiency: isFinite(timeEfficiency) ? timeEfficiency.toFixed(1) : '0.0',
+      potentialSavings: isFinite(potentialSavings) ? potentialSavings.toFixed(2) : '0.00',
+      costPerKm: isFinite(costPerKm) ? costPerKm.toFixed(2) : '0.00',
+      visitsPerHour: isFinite(visitsPerHour) ? visitsPerHour.toFixed(2) : '0.00',
+      pingsPerKm: isFinite(pingsPerKm) ? pingsPerKm.toFixed(1) : '0.0',
+      fuelEfficiency: isFinite(fuelEfficiency) ? fuelEfficiency.toFixed(2) : '0.00',
       visitsCount: visitsCount,
-      dataQuality: ping_count > 10 ? 'Good' : ping_count > 5 ? 'Fair' : 'Limited'
+      dataQuality: safePingCount > 10 ? 'Good' : safePingCount > 5 ? 'Fair' : 'Limited'
     };
   }, [optimizationData, routeData, routeInfo]);
 
@@ -228,34 +238,34 @@ const RouteOptimizer = ({ selectedRouteId }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
             <div className="text-2xl font-bold text-green-600">
-              {optimizationData.efficiency_percentage}%
+              {parseFloat(optimizationData.efficiency_percentage || 0).toFixed(1)}%
             </div>
             <div className="text-sm text-green-700 font-medium">Route Efficiency</div>
             <div className="text-xs text-green-600 mt-1">
               {optimizationData.efficiency_rating || (
-                optimizationData.efficiency_percentage > 80 ? 'Excellent' :
-                optimizationData.efficiency_percentage > 60 ? 'Good' : 'Needs Improvement'
+                parseFloat(optimizationData.efficiency_percentage || 0) > 80 ? 'Excellent' :
+                parseFloat(optimizationData.efficiency_percentage || 0) > 60 ? 'Good' : 'Needs Improvement'
               )}
             </div>
           </div>
 
           <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
             <div className="text-2xl font-bold text-blue-600">
-              {optimizationData.actual_distance_km} km
+              {parseFloat(optimizationData.actual_distance_km || 0).toFixed(1)} km
             </div>
             <div className="text-sm text-blue-700 font-medium">Actual Distance</div>
             <div className="text-xs text-blue-600 mt-1">
-              vs {optimizationData.optimal_distance_km} km optimal
+              vs {parseFloat(optimizationData.optimal_distance_km || 0).toFixed(1)} km optimal
             </div>
           </div>
 
           <div className="text-center p-4 bg-orange-50 rounded-lg border border-orange-200">
             <div className="text-2xl font-bold text-orange-600">
-              ${optimizationData.estimated_fuel_cost}
+              ${parseFloat(optimizationData.estimated_fuel_cost || 0).toFixed(2)}
             </div>
             <div className="text-sm text-orange-700 font-medium">Fuel Cost</div>
             <div className="text-xs text-orange-600 mt-1">
-              {optimizationData.fuel_consumption_liters}L consumed
+              {parseFloat(optimizationData.fuel_consumption_liters || 0).toFixed(1)}L consumed
             </div>
           </div>
 
@@ -284,14 +294,14 @@ const RouteOptimizer = ({ selectedRouteId }) => {
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
               <span className="text-sm font-medium">Route Deviation</span>
               <span className="font-bold text-red-600">
-                +{optimizationData.deviation_km} km
+                +{parseFloat(optimizationData.deviation_km || 0).toFixed(1)} km
               </span>
             </div>
             
             <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
               <span className="text-sm font-medium">Fuel Efficiency</span>
               <span className="font-bold text-green-600">
-                {(optimizationData.fuel_consumption_liters / optimizationData.actual_distance_km).toFixed(2) || 0}L/100km
+                {enhancedMetrics?.fuelEfficiency || '0.00'}L/100km
               </span>
             </div>
             
@@ -330,7 +340,7 @@ const RouteOptimizer = ({ selectedRouteId }) => {
           </h4>
           
           <div className="space-y-3">
-            {optimizationData.efficiency_percentage < 80 && (
+            {parseFloat(optimizationData.efficiency_percentage || 0) < 80 && (
               <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <div className="flex items-start gap-2">
                   <FiTrendingUp className="text-yellow-600 mt-1 flex-shrink-0" />
@@ -346,7 +356,7 @@ const RouteOptimizer = ({ selectedRouteId }) => {
               </div>
             )}
             
-            {optimizationData.deviation_km > 5 && (
+            {parseFloat(optimizationData.deviation_km || 0) > 5 && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                 <div className="flex items-start gap-2">
                   <FiMapPin className="text-red-600 mt-1 flex-shrink-0" />
@@ -355,14 +365,14 @@ const RouteOptimizer = ({ selectedRouteId }) => {
                       High Route Deviation Detected
                     </p>
                     <p className="text-xs text-red-700 mt-1">
-                      {optimizationData.deviation_km}km deviation suggests route planning improvements needed.
+                      {parseFloat(optimizationData.deviation_km || 0).toFixed(1)}km deviation suggests route planning improvements needed.
                     </p>
                   </div>
                 </div>
               </div>
             )}
             
-            {optimizationData.fuel_consumption_liters > 20 && (
+            {parseFloat(optimizationData.fuel_consumption_liters || 0) > 20 && (
               <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
                 <div className="flex items-start gap-2">
                   <FiZap className="text-orange-600 mt-1 flex-shrink-0" />
@@ -378,7 +388,7 @@ const RouteOptimizer = ({ selectedRouteId }) => {
               </div>
             )}
             
-            {routeData.summary.ping_count < 10 && (
+            {parseInt(routeData.summary.ping_count || 0) < 10 && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-start gap-2">
                   <FiClock className="text-blue-600 mt-1 flex-shrink-0" />
@@ -394,7 +404,7 @@ const RouteOptimizer = ({ selectedRouteId }) => {
               </div>
             )}
             
-            {optimizationData.efficiency_percentage > 80 && optimizationData.deviation_km < 3 && (
+            {parseFloat(optimizationData.efficiency_percentage || 0) > 80 && parseFloat(optimizationData.deviation_km || 0) < 3 && (
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-start gap-2">
                   <FiTrendingUp className="text-green-600 mt-1 flex-shrink-0" />
