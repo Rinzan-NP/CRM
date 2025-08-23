@@ -3,8 +3,6 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Sum, Count
 from .models import SalesOrder, PurchaseOrder
-from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
 
 # Sales Order Report API
 class SalesOrderReportView(APIView):
@@ -523,70 +521,253 @@ class RouteLocationPingViewSet(viewsets.ModelViewSet):
         return qs.order_by('-created_at')
 
     def create(self, request, *args, **kwargs):
-        """Enhanced create with GPS validation and WebSocket broadcasting"""
+        """Override create to add debugging and better error handling"""
         try:
-            # Enhanced GPS validation
-            lat = float(request.data.get('lat', 0))
-            lon = float(request.data.get('lon', 0))
-            accuracy = float(request.data.get('accuracy_meters', 0)) if request.data.get('accuracy_meters') else None
+            print(f"Creating RouteLocationPing with data: {request.data}")
+            print(f"User: {request.user}, Role: {getattr(request.user, 'role', 'N/A')}")
             
-            # Basic coordinate validation
-            if lat < -90 or lat > 90 or lon < -180 or lon > 180:
-                return Response({'detail': 'Invalid GPS coordinates'}, status=400)
-            
-            # Accuracy validation
-            if accuracy and accuracy > 100:  # Reject readings worse than 100m
-                return Response({
-                    'detail': f'GPS accuracy too poor: {accuracy:.1f}m'
-                }, status=400)
-            
-            # Check for unrealistic speed
-            speed_mps = float(request.data.get('speed_mps', 0)) if request.data.get('speed_mps') else None
-            if speed_mps and speed_mps * 3.6 > 120:  # > 120 km/h is unrealistic for delivery routes
-                return Response({
-                    'detail': f'Unrealistic speed detected: {speed_mps * 3.6:.1f} km/h'
-                }, status=400)
-            
-            # Check minimum movement requirement
+            # Validate required fields
             route_id = request.data.get('route')
-            if route_id:
-                last_ping = RouteLocationPing.objects.filter(
-                    route_id=route_id
-                ).order_by('-created_at').first()
+            lat = request.data.get('lat')
+            lon = request.data.get('lon')
+            
+            if not route_id:
+                return Response({'detail': 'Route ID is required'}, status=400)
+            if not lat or not lon:
+                return Response({'detail': 'Latitude and longitude are required'}, status=400)
+            
+            # Validate coordinates
+            try:
+                lat_float = float(lat)
+                lon_float = float(lon)
+                if lat_float < -90 or lat_float > 90:
+                    return Response({'detail': 'Invalid latitude'}, status=400)
+                if lon_float < -180 or lon_float > 180:
+                    return Response({'detail': 'Invalid longitude'}, status=400)
+            except (ValueError, TypeError):
+                return Response({'detail': 'Invalid coordinate format'}, status=400)
+            
+            # Check if route exists and user has permission
+            try:
+                route = Route.objects.get(id=route_id)
+                print(f"Route found: {route.name}, Salesperson: {route.salesperson}")
                 
-                if last_ping:
-                    # Calculate distance from last ping
-                    distance = self._calculate_distance(
-                        float(last_ping.lat), float(last_ping.lon),
-                        lat, lon
+                # Check permissions
+                user = request.user
+                role = getattr(user, 'role', '')
+                if role == 'salesperson' and route.salesperson != user:
+                    print(f"Permission denied: {user} cannot access route {route_id}")
+                    return Response(
+                        {'detail': 'You can only send location for your own routes'}, 
+                        status=403
                     )
-                    
-                    # Check minimum distance (50m) and time interval (30 seconds)
-                    time_since_last = (timezone.now() - last_ping.created_at).total_seconds()
-                    
-                    if distance < 50 and time_since_last < 30:
-                        return Response({
-                            'detail': f'Insufficient movement: {distance:.1f}m in {time_since_last:.1f}s'
-                        }, status=400)
+            except Route.DoesNotExist:
+                print(f"Route not found: {route_id}")
+                return Response({'detail': 'Route not found'}, status=404)
             
-            # Create the ping
             response = super().create(request, *args, **kwargs)
-            
-            # Broadcast via WebSocket (handled by signal)
-            # The post_save signal will automatically broadcast this
-            
-            print(f"GPS ping created successfully: {response.data.get('id')}")
+            print(f"Successfully created ping: {response.data}")
             return response
             
-        except ValueError as e:
-            return Response({'detail': f'Invalid numeric data: {str(e)}'}, status=400)
         except Exception as e:
             print(f"Error creating RouteLocationPing: {e}")
-            return Response({'detail': f'Error creating GPS ping: {str(e)}'}, status=500)
+            print(f"Request data: {request.data}")
+            return Response({'detail': f'Error creating location ping: {str(e)}'}, status=500)
+
+    @action(detail=False, methods=['get'])
+    def route_summary(self, request):
+        """Get route summary and optimization metrics - FIXED VERSION"""
+        route_id = request.query_params.get('route_id')
+        if not route_id:
+            return Response({'error': 'route_id is required'}, status=400)
+        
+        try:
+            # Get route first to ensure it exists
+            try:
+                route = Route.objects.get(id=route_id)
+            except Route.DoesNotExist:
+                return Response({'error': 'Route not found'}, status=404)
+            
+            # Get all pings for the route
+            pings = self.get_queryset().filter(route_id=route_id).order_by('created_at')
+            
+            # Initialize default summary
+            default_summary = {
+                'total_distance_km': 0.0,
+                'total_time_hours': 0.0,
+                'average_speed_kmh': 0.0,
+                'max_speed_kmh': 0.0,
+                'ping_count': 0,
+                'start_time': None,
+                'end_time': None,
+                'movement_efficiency_percent': 0.0
+            }
+            
+            # Initialize default optimization
+            default_optimization = {
+                'efficiency_percentage': 100.0,
+                'actual_distance_km': 0.0,
+                'optimal_distance_km': 0.0,
+                'deviation_km': 0.0,
+                'fuel_consumption_liters': 0.0,
+                'estimated_fuel_cost': 0.0,
+                'time_efficiency': 'Unknown',
+                'efficiency_rating': 'No Data'
+            }
+            
+            if not pings.exists():
+                print(f"No pings found for route {route_id}")
+                return Response({
+                    'summary': default_summary,
+                    'optimization': default_optimization,
+                    'message': 'No location data available for this route yet'
+                })
+            
+            # Calculate route summary
+            total_distance = 0.0
+            total_time = 0.0
+            speeds = []
+            moving_time = 0.0
+            
+            pings_list = list(pings)
+            
+            for i in range(1, len(pings_list)):
+                prev_ping = pings_list[i-1]
+                curr_ping = pings_list[i]
+                
+                # Calculate distance between consecutive pings
+                distance = self._calculate_distance(
+                    prev_ping.lat, prev_ping.lon,
+                    curr_ping.lat, curr_ping.lon
+                )
+                total_distance += distance
+                
+                # Calculate time difference
+                time_diff = (curr_ping.created_at - prev_ping.created_at).total_seconds()
+                total_time += time_diff / 3600  # Convert to hours
+                
+                # Only count as moving time if there's significant movement
+                if distance > 0.01:  # More than 10 meters
+                    moving_time += time_diff / 3600
+                
+                # Calculate speed from GPS data or calculate from distance/time
+                if curr_ping.speed_mps and curr_ping.speed_mps > 0:
+                    speed_kmh = float(curr_ping.speed_mps) * 3.6
+                    speeds.append(speed_kmh)
+                elif time_diff > 0 and distance > 0:
+                    # Calculate speed from distance and time
+                    speed_kmh = (distance / (time_diff / 3600))
+                    if speed_kmh <= 120:  # Filter out unrealistic speeds
+                        speeds.append(speed_kmh)
+            
+            # Calculate metrics
+            average_speed = sum(speeds) / len(speeds) if speeds else 0
+            max_speed = max(speeds) if speeds else 0
+            movement_efficiency = (moving_time / total_time * 100) if total_time > 0 else 0
+            
+            # Build summary
+            summary = {
+                'total_distance_km': round(total_distance, 2),
+                'total_time_hours': round(total_time, 2),
+                'moving_time_hours': round(moving_time, 2),
+                'average_speed_kmh': round(average_speed, 1),
+                'max_speed_kmh': round(max_speed, 1),
+                'ping_count': len(pings_list),
+                'start_time': pings_list[0].created_at.isoformat(),
+                'end_time': pings_list[-1].created_at.isoformat(),
+                'movement_efficiency_percent': round(movement_efficiency, 1)
+            }
+            
+            # Calculate optimization metrics
+            try:
+                route_visits = route.visits.all()
+                optimal_distance = 0.0
+                
+                if route_visits.count() > 1:
+                    visits_with_coords = [v for v in route_visits if v.lat and v.lon]
+                    for i in range(1, len(visits_with_coords)):
+                        optimal_distance += self._calculate_distance(
+                            visits_with_coords[i-1].lat, visits_with_coords[i-1].lon,
+                            visits_with_coords[i].lat, visits_with_coords[i].lon
+                        )
+                
+                # Calculate efficiency metrics with safety checks
+                if optimal_distance > 0 and total_distance > 0:
+                    deviation = max(0, total_distance - optimal_distance)
+                    efficiency_percentage = min(100, (optimal_distance / total_distance * 100))
+                elif total_distance == 0:
+                    deviation = 0
+                    efficiency_percentage = 100
+                else:
+                    deviation = total_distance
+                    efficiency_percentage = 0
+                
+                # Estimate fuel consumption (assuming 8L/100km average)
+                fuel_consumption = (total_distance / 100) * 8 if total_distance > 0 else 0
+                fuel_cost = fuel_consumption * 1.5  # Assuming $1.5/L
+                
+                # Determine efficiency rating
+                if efficiency_percentage > 90:
+                    efficiency_rating = 'Excellent'
+                elif efficiency_percentage > 75:
+                    efficiency_rating = 'Good'
+                elif efficiency_percentage > 60:
+                    efficiency_rating = 'Fair'
+                else:
+                    efficiency_rating = 'Poor'
+                
+                optimization_data = {
+                    'efficiency_percentage': round(efficiency_percentage, 1),
+                    'actual_distance_km': round(total_distance, 2),
+                    'optimal_distance_km': round(optimal_distance, 2),
+                    'deviation_km': round(deviation, 2),
+                    'fuel_consumption_liters': round(fuel_consumption, 1),
+                    'estimated_fuel_cost': round(fuel_cost, 2),
+                    'efficiency_rating': efficiency_rating
+                }
+                
+            except Exception as e:
+                print(f"Error calculating optimization metrics: {e}")
+                optimization_data = default_optimization
+            
+            return Response({
+                'summary': summary,
+                'optimization': optimization_data
+            })
+            
+        except Exception as e:
+            print(f"Error in route_summary: {e}")
+            return Response({
+                'summary': default_summary,
+                'optimization': default_optimization,
+                'error': f'Error calculating route summary: {str(e)}'
+            }, status=500)
+    
+    def _calculate_distance(self, lat1, lon1, lat2, lon2):
+        """Calculate distance between two coordinates using Haversine formula"""
+        try:
+            from math import radians, cos, sin, asin, sqrt
+            
+            # Convert to float and then radians
+            lat1, lon1, lat2, lon2 = map(lambda x: radians(float(x)), [lat1, lon1, lat2, lon2])
+            
+            # Haversine formula
+            dlat = lat2 - lat1
+            dlon = lon2 - lon1
+            a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+            c = 2 * asin(sqrt(a))
+            
+            # Radius of earth in kilometers
+            r = 6371
+            
+            return c * r
+        except Exception as e:
+            print(f"Error calculating distance: {e}")
+            return 0.0
 
     @action(detail=False, methods=['post'])
     def start_route_tracking(self, request):
-        """Enhanced start tracking with WebSocket notification"""
+        """Start tracking a route - IMPROVED VERSION"""
         route_id = request.data.get('route_id')
         if not route_id:
             return Response({'detail': 'route_id is required'}, status=400)
@@ -599,35 +780,29 @@ class RouteLocationPingViewSet(viewsets.ModelViewSet):
             if hasattr(user, 'role') and user.role == 'salesperson' and route.salesperson != user:
                 return Response({'detail': 'You can only track your own routes'}, status=403)
             
-            # Check if already tracking
-            recent_pings = RouteLocationPing.objects.filter(
+            # Check if tracking is already active (within last 30 minutes)
+            from django.utils import timezone
+            active_pings = RouteLocationPing.objects.filter(
                 route=route,
                 created_at__gte=timezone.now() - timezone.timedelta(minutes=30)
             ).order_by('-created_at')
             
-            # Broadcast tracking status
-            channel_layer = get_channel_layer()
-            if channel_layer:
-                route_group_name = f'route_{route.id}'
-                async_to_sync(channel_layer.group_send)(
-                    route_group_name,
-                    {
-                        'type': 'tracking_status_update',
-                        'status': 'started',
-                        'message': 'GPS tracking started'
-                    }
-                )
-            
-            if recent_pings.exists():
+            if active_pings.exists():
+                last_ping = active_pings.first()
                 return Response({
-                    'message': 'Route tracking already active',
+                    'message': 'Route tracking already active - continuing existing session',
                     'route_id': str(route.id),
+                    'route_name': route.name,
+                    'tracking_id': str(last_ping.id),
+                    'last_ping': last_ping.created_at,
                     'status': 'active'
                 })
             
             return Response({
-                'message': 'Route tracking started',
+                'message': 'Route tracking started - you can now send GPS pings',
                 'route_id': str(route.id),
+                'route_name': route.name,
+                'start_time': timezone.now(),
                 'status': 'started'
             })
             
@@ -636,34 +811,289 @@ class RouteLocationPingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def stop_route_tracking(self, request):
-        """Enhanced stop tracking with WebSocket notification"""
+        """Stop tracking a route and calculate summary - IMPROVED VERSION"""
         route_id = request.data.get('route_id')
         if not route_id:
             return Response({'detail': 'route_id is required'}, status=400)
         
         try:
             route = Route.objects.get(id=route_id)
+            user = request.user
             
-            # Broadcast tracking status
-            channel_layer = get_channel_layer()
-            if channel_layer:
-                route_group_name = f'route_{route.id}'
-                async_to_sync(channel_layer.group_send)(
-                    route_group_name,
-                    {
-                        'type': 'tracking_status_update',
-                        'status': 'stopped',
-                        'message': 'GPS tracking stopped'
-                    }
-                )
+            # Check permissions
+            if hasattr(user, 'role') and user.role == 'salesperson' and route.salesperson != user:
+                return Response({'detail': 'You can only track your own routes'}, status=403)
+            
+            # Get all pings for today
+            from django.utils import timezone
+            today_pings = RouteLocationPing.objects.filter(
+                route=route,
+                created_at__date=timezone.now().date()
+            ).order_by('created_at')
+            
+            if not today_pings.exists():
+                return Response({
+                    'message': 'Route tracking stopped - no GPS data was recorded',
+                    'route_id': str(route.id),
+                    'route_name': route.name,
+                    'summary': None
+                })
+            
+            # Get basic summary stats
+            ping_count = today_pings.count()
+            start_time = today_pings.first().created_at
+            end_time = today_pings.last().created_at
+            duration = end_time - start_time
             
             return Response({
-                'message': 'Route tracking stopped',
-                'route_id': str(route.id)
+                'message': 'Route tracking stopped and summary generated',
+                'route_id': str(route.id),
+                'route_name': route.name,
+                'basic_summary': {
+                    'ping_count': ping_count,
+                    'start_time': start_time,
+                    'end_time': end_time,
+                    'duration_minutes': duration.total_seconds() / 60
+                }
             })
             
         except Route.DoesNotExist:
             return Response({'detail': 'Route not found'}, status=404)
+
+    #rolebased location tracking aakan vendi admin monitoring only salesperson tracking
+    @action(detail=False, methods=['post'])
+    def start_route_monitoring(self, request):
+        """Start monitoring a route (admin-only, no GPS tracking)"""
+        route_id = request.data.get('route_id')
+        if not route_id:
+            return Response({'detail': 'route_id is required'}, status=400)
+        
+        try:
+            route = Route.objects.get(id=route_id)
+            user = request.user
+            
+            # Only allow admin users to monitor
+            if hasattr(user, 'role') and user.role != 'admin':
+                return Response({'detail': 'Only admin users can monitor routes'}, status=403)
+            
+            # Check if the route has an active salesperson tracking session
+            from django.utils import timezone
+            recent_pings = RouteLocationPing.objects.filter(
+                route=route,
+                created_at__gte=timezone.now() - timezone.timedelta(hours=24)
+            ).order_by('-created_at')
+            
+            monitoring_status = {
+                'message': 'Route monitoring started - watching for updates from salesperson',
+                'route_id': str(route.id),
+                'route_name': route.name,
+                'salesperson': route.salesperson.email if route.salesperson else 'Unknown',
+                'start_time': timezone.now(),
+                'status': 'monitoring',
+                'recent_activity': recent_pings.exists()
+            }
+            
+            if recent_pings.exists():
+                last_ping = recent_pings.first()
+                monitoring_status.update({
+                    'last_ping': last_ping.created_at,
+                    'last_location': {
+                        'lat': float(last_ping.lat),
+                        'lon': float(last_ping.lon)
+                    }
+                })
+            
+            return Response(monitoring_status)
+            
+        except Route.DoesNotExist:
+            return Response({'detail': 'Route not found'}, status=404)
+
+    @action(detail=False, methods=['post'])
+    def stop_route_monitoring(self, request):
+        """Stop monitoring a route"""
+        route_id = request.data.get('route_id')
+        if not route_id:
+            return Response({'detail': 'route_id is required'}, status=400)
+        
+        try:
+            route = Route.objects.get(id=route_id)
+            user = request.user
+            
+            # Only allow admin users to stop monitoring
+            if hasattr(user, 'role') and user.role != 'admin':
+                return Response({'detail': 'Only admin users can stop monitoring'}, status=403)
+            
+            # Get monitoring summary for today
+            from django.utils import timezone
+            today_pings = RouteLocationPing.objects.filter(
+                route=route,
+                created_at__date=timezone.now().date()
+            ).order_by('created_at')
+            
+            summary = {
+                'message': 'Route monitoring stopped',
+                'route_id': str(route.id),
+                'route_name': route.name,
+                'monitoring_summary': {
+                    'ping_count': today_pings.count(),
+                    'monitoring_stopped': timezone.now()
+                }
+            }
+            
+            if today_pings.exists():
+                summary['monitoring_summary'].update({
+                    'first_ping': today_pings.first().created_at,
+                    'last_ping': today_pings.last().created_at,
+                    'salesperson_active': True
+                })
+            else:
+                summary['monitoring_summary']['salesperson_active'] = False
+            
+            return Response(summary)
+            
+        except Route.DoesNotExist:
+            return Response({'detail': 'Route not found'}, status=404)
+
+    @action(detail=False, methods=['get'])
+    def monitoring_status(self, request):
+        """Get current monitoring status for all active routes (admin-only)"""
+        user = request.user
+        
+        # Only allow admin users
+        if hasattr(user, 'role') and user.role != 'admin':
+            return Response({'detail': 'Admin access required'}, status=403)
+        
+        from django.utils import timezone
+        today = timezone.now().date()
+        
+        # Get all routes with activity today
+        active_routes = Route.objects.filter(
+            location_pings__created_at__date=today
+        ).distinct().select_related('salesperson')
+        
+        monitoring_data = []
+        for route in active_routes:
+            recent_pings = route.location_pings.filter(
+                created_at__date=today
+            ).order_by('-created_at')
+            
+            if recent_pings.exists():
+                last_ping = recent_pings.first()
+                first_ping = recent_pings.last()
+                
+                # Check if still active (ping within last 30 minutes)
+                is_active = (timezone.now() - last_ping.created_at).total_seconds() < 1800
+                
+                route_data = {
+                    'route_id': str(route.id),
+                    'route_name': route.name,
+                    'route_number': route.route_number,
+                    'salesperson': route.salesperson.email if route.salesperson else 'Unknown',
+                    'date': route.date,
+                    'is_active': is_active,
+                    'ping_count': recent_pings.count(),
+                    'first_ping': first_ping.created_at,
+                    'last_ping': last_ping.created_at,
+                    'last_location': {
+                        'lat': float(last_ping.lat),
+                        'lon': float(last_ping.lon)
+                    },
+                    'time_since_last_ping': (timezone.now() - last_ping.created_at).total_seconds() / 60  # minutes
+                }
+                
+                monitoring_data.append(route_data)
+        
+        return Response({
+            'monitoring_date': today,
+            'active_routes': len(monitoring_data),
+            'routes': monitoring_data
+        })
+
+    @action(detail=False, methods=['get'])
+    def live_tracking_status(self, request):
+        """Get real-time status of all routes being tracked today"""
+        from django.utils import timezone
+        from django.db.models import Count, Max, Min
+        
+        user = request.user
+        role = getattr(user, 'role', '')
+        
+        today = timezone.now().date()
+        
+        # Base query for routes with pings today
+        routes_query = Route.objects.filter(
+            location_pings__created_at__date=today
+        ).select_related('salesperson').annotate(
+            ping_count=Count('location_pings'),
+            last_ping_time=Max('location_pings__created_at'),
+            first_ping_time=Min('location_pings__created_at')
+        ).distinct()
+        
+        # Apply role-based filtering
+        if role == 'salesperson':
+            routes_query = routes_query.filter(salesperson=user)
+        
+        active_routes = []
+        for route in routes_query:
+            # Get the most recent ping
+            last_ping = route.location_pings.filter(
+                created_at__date=today
+            ).order_by('-created_at').first()
+            
+            if last_ping:
+                # Determine if route is currently active (ping within last 30 minutes)
+                time_since_last = (timezone.now() - last_ping.created_at).total_seconds()
+                is_currently_active = time_since_last < 1800  # 30 minutes
+                
+                # Calculate basic stats
+                total_time = 0
+                if route.first_ping_time and route.last_ping_time:
+                    total_time = (route.last_ping_time - route.first_ping_time).total_seconds() / 3600  # hours
+                
+                route_status = {
+                    'route_id': str(route.id),
+                    'route_name': route.name,
+                    'route_number': route.route_number,
+                    'date': str(route.date),
+                    'salesperson': {
+                        'name': route.salesperson.email if route.salesperson else 'Unknown',
+                        'id': route.salesperson.id if route.salesperson else None
+                    },
+                    'status': {
+                        'is_active': is_currently_active,
+                        'ping_count': route.ping_count,
+                        'first_ping': route.first_ping_time,
+                        'last_ping': route.last_ping_time,
+                        'total_time_hours': round(total_time, 2),
+                        'minutes_since_last_ping': round(time_since_last / 60, 1)
+                    },
+                    'last_location': {
+                        'lat': float(last_ping.lat),
+                        'lon': float(last_ping.lon),
+                        'accuracy': float(last_ping.accuracy_meters) if last_ping.accuracy_meters else None
+                    }
+                }
+                
+                active_routes.append(route_status)
+        
+        # Sort by last ping time (most recent first)
+        active_routes.sort(key=lambda x: x['status']['last_ping'], reverse=True)
+        
+        # Summary statistics
+        total_routes = len(active_routes)
+        currently_active = len([r for r in active_routes if r['status']['is_active']])
+        
+        return Response({
+            'date': today,
+            'summary': {
+                'total_routes_today': total_routes,
+                'currently_active': currently_active,
+                'inactive_routes': total_routes - currently_active
+            },
+            'routes': active_routes,
+            'user_role': role,
+            'last_updated': timezone.now()
+        })
         
         
         

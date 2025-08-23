@@ -17,7 +17,7 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [IsAdminUser]
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
-
+    
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]

@@ -26,132 +26,14 @@ const RouteLiveTracker = () => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [lastConfirmedLocation, setLastConfirmedLocation] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
-  
   const { user, isAuthenticated } = useAuth();
   const userRole = user?.role || '';
-  
   const watchIdRef = useRef(null);
-  const websocketRef = useRef(null);
-  const lastPingTimeRef = useRef(0);
-  const locationHistoryRef = useRef([]); // For GPS smoothing
+  const monitoringIntervalRef = useRef(null);
   const mapRef = useRef(null);
 
-  // Enhanced GPS filtering constants
-  const GPS_CONFIG = {
-    MAX_ACCURACY: 100,           // Reject readings worse than 100m
-    MIN_DISTANCE: 50,            // Minimum 50m movement required
-    MIN_TIME_INTERVAL: 30000,    // Minimum 30 seconds between pings
-    MAX_SPEED: 120,              // Maximum realistic speed in km/h
-    SMOOTHING_WINDOW: 3,         // Number of readings to average
-    INDOOR_ACCURACY_THRESHOLD: 65 // Consider readings worse than 65m as potentially indoor
-  };
+  // Get user role from API or context
 
-  // Initialize WebSocket connection
-  const initWebSocket = useCallback(() => {
-    if (!selectedRouteId) return;
-
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/route/${selectedRouteId}/`;
-    
-    try {
-      websocketRef.current = new WebSocket(wsUrl);
-      
-      websocketRef.current.onopen = () => {
-        console.log('WebSocket connected for route tracking');
-        setInfo('Real-time connection established');
-      };
-      
-      websocketRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          handleWebSocketMessage(data);
-        } catch (e) {
-          console.error('Failed to parse WebSocket message:', e);
-        }
-      };
-      
-      websocketRef.current.onclose = (event) => {
-        console.log('WebSocket connection closed:', event.code, event.reason);
-        if (isTracking || isMonitoring) {
-          // Attempt reconnection after 5 seconds if still tracking
-          setTimeout(initWebSocket, 5000);
-        }
-      };
-      
-      websocketRef.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setError('Real-time connection error - using manual updates');
-      };
-    } catch (e) {
-      console.error('Failed to create WebSocket connection:', e);
-      setError('WebSocket not supported - using manual updates');
-    }
-  }, [selectedRouteId, isTracking, isMonitoring]);
-
-  // Handle WebSocket messages
-  const handleWebSocketMessage = useCallback((data) => {
-    switch (data.type) {
-      case 'gps_ping':
-        setPings(prev => {
-          // Avoid duplicates based on timestamp
-          const exists = prev.some(p => 
-            Math.abs(new Date(p.created_at).getTime() - new Date(data.ping.created_at).getTime()) < 1000
-          );
-          if (exists) return prev;
-          return [...prev, data.ping];
-        });
-        break;
-      case 'route_summary':
-        setRouteSummary(data.summary);
-        setOptimizationMetrics(data.optimization);
-        break;
-      case 'tracking_status':
-        if (data.status === 'stopped') {
-          setIsTracking(false);
-          setIsMonitoring(false);
-        }
-        setInfo(data.message);
-        break;
-      case 'error':
-        setError(data.message);
-        break;
-      case 'initial_data':
-        setPings(data.pings || []);
-        break;
-      case 'connection_status':
-        if (data.status === 'connected') {
-          setInfo('WebSocket connected successfully');
-        }
-        break;
-      default:
-        console.log('Unknown WebSocket message type:', data.type);
-    }
-  }, []);
-
-  // Enhanced GPS coordinate validation
-  const isValidGPSReading = useCallback((position) => {
-    const { latitude, longitude, accuracy, speed } = position.coords;
-    
-    // Basic coordinate validation
-    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-      console.log('Invalid GPS coordinates');
-      return { valid: false, reason: 'Invalid coordinates' };
-    }
-    
-    // Accuracy validation
-    if (accuracy > GPS_CONFIG.MAX_ACCURACY) {
-      console.log(`GPS accuracy too poor: ${accuracy}m`);
-      return { valid: false, reason: `Poor accuracy: ${accuracy.toFixed(1)}m` };
-    }
-    
-    // Speed validation (reject unrealistic speeds)
-    if (speed && speed * 3.6 > GPS_CONFIG.MAX_SPEED) {
-      console.log(`Unrealistic speed detected: ${(speed * 3.6).toFixed(1)} km/h`);
-      return { valid: false, reason: `Unrealistic speed: ${(speed * 3.6).toFixed(1)} km/h` };
-    }
-    
-    return { valid: true };
-  }, []);
 
   // Improved distance calculation using Haversine formula
   const calculateDistance = useCallback((lat1, lon1, lat2, lon2) => {
@@ -169,76 +51,32 @@ const RouteLiveTracker = () => {
     return R * c; // Distance in meters
   }, []);
 
-  // GPS smoothing using moving average
-  const smoothGPSReading = useCallback((newReading) => {
-    const history = locationHistoryRef.current;
-    history.push(newReading);
-    
-    // Keep only recent readings
-    if (history.length > GPS_CONFIG.SMOOTHING_WINDOW) {
-      history.shift();
-    }
-    
-    // If we don't have enough readings, return the current one
-    if (history.length < 2) {
-      return newReading;
-    }
-    
-    // Calculate weighted average (more weight to recent readings)
-    let totalLat = 0, totalLon = 0, totalWeight = 0;
-    
-    history.forEach((reading, index) => {
-      const weight = index + 1; // Recent readings get higher weight
-      totalLat += reading.lat * weight;
-      totalLon += reading.lon * weight;
-      totalWeight += weight;
-    });
-    
-    return {
-      lat: totalLat / totalWeight,
-      lon: totalLon / totalWeight,
-      accuracy: Math.min(...history.map(r => r.accuracy)), // Best accuracy
-      timestamp: newReading.timestamp
-    };
-  }, []);
-
-  // Enhanced movement detection with multiple filters
+  // Smart movement detection based on GPS accuracy
   const hasMovedSignificantly = useCallback((lastLocation, newLocation, accuracy) => {
     if (!lastLocation) return true;
-    
-    // Time-based filtering - don't ping too frequently
-    const now = Date.now();
-    if (now - lastPingTimeRef.current < GPS_CONFIG.MIN_TIME_INTERVAL) {
-      console.log(`Time filter: ${((now - lastPingTimeRef.current) / 1000).toFixed(1)}s since last ping`);
-      return false;
-    }
     
     const distance = calculateDistance(
       lastLocation.lat, lastLocation.lon,
       newLocation.lat, newLocation.lon
     );
     
-    // Dynamic threshold based on GPS accuracy and environmental factors
-    let movementThreshold = GPS_CONFIG.MIN_DISTANCE;
+    // Dynamic threshold based on GPS accuracy
+    const accuracyMeters = accuracy || 25; // Default to 25m if no accuracy provided
+    const movementThreshold = Math.max(
+      20,                          // Minimum 20 meters to avoid GPS noise
+      accuracyMeters * 2          // 2x the GPS accuracy for reliable detection
+    );
     
-    // Increase threshold for poor accuracy readings (likely indoors or poor signal)
-    if (accuracy > GPS_CONFIG.INDOOR_ACCURACY_THRESHOLD) {
-      movementThreshold = Math.max(movementThreshold, accuracy * 1.5);
-    }
+    console.log(`Distance: ${distance.toFixed(2)}m, Threshold: ${movementThreshold.toFixed(2)}m, Accuracy: ${accuracyMeters}m`);
     
-    // Additional validation for very large jumps
-    if (distance > 500) { // More than 500m in 30 seconds is suspicious
-      const maxReasonableDistance = GPS_CONFIG.MAX_SPEED * 1000 / 3600 * (GPS_CONFIG.MIN_TIME_INTERVAL / 1000);
-      if (distance > maxReasonableDistance) {
-        console.log(`Suspicious GPS jump: ${distance.toFixed(1)}m in ${GPS_CONFIG.MIN_TIME_INTERVAL/1000}s`);
-        return false;
-      }
-    }
-    
-    console.log(`Movement check: ${distance.toFixed(1)}m (threshold: ${movementThreshold.toFixed(1)}m, accuracy: ${accuracy?.toFixed(1)}m)`);
-    
-    return distance >= movementThreshold;
+    return distance > movementThreshold;
   }, [calculateDistance]);
+
+  // Check if GPS reading is accurate enough
+  const isAccurateEnough = useCallback((accuracy) => {
+    const maxAccuracy = 50; // Reject readings worse than 50m accuracy
+    return !accuracy || accuracy <= maxAccuracy;
+  }, []);
 
   // Fetch routes on component mount
   useEffect(() => {
@@ -251,35 +89,6 @@ const RouteLiveTracker = () => {
       setSelectedRouteId(routeParam);
     }
   }, []);
-
-  // Initialize WebSocket when route is selected
-  useEffect(() => {
-    if (selectedRouteId) {
-      initWebSocket();
-      fetchRoutePings();
-      fetchRouteSummary();
-      // Reset location states
-      setLastConfirmedLocation(null);
-      setCurrentLocation(null);
-      locationHistoryRef.current = [];
-      lastPingTimeRef.current = 0;
-    } else {
-      if (websocketRef.current) {
-        websocketRef.current.close();
-        websocketRef.current = null;
-      }
-      setPings([]);
-      setRouteSummary(null);
-      setOptimizationMetrics(null);
-    }
-
-    return () => {
-      if (websocketRef.current) {
-        websocketRef.current.close();
-        websocketRef.current = null;
-      }
-    };
-  }, [selectedRouteId, initWebSocket]);
 
   // Fetch routes from API
   const fetchRoutes = async () => {
@@ -304,6 +113,7 @@ const RouteLiveTracker = () => {
       console.log(`Fetched ${response.data.length} pings for route ${selectedRouteId}`);
     } catch (e) {
       console.error('Failed to fetch route history:', e);
+      setError('Failed to fetch route history');
     }
   }, [selectedRouteId]);
 
@@ -323,24 +133,78 @@ const RouteLiveTracker = () => {
         setRouteSummary(response.data.summary || null);
         setOptimizationMetrics(response.data.optimization || null);
         
+        // Show message if no data available
         if (response.data.message) {
           setInfo(response.data.message);
         }
+        
+        console.log('Route summary fetched:', response.data);
       }
     } catch (e) {
       console.error('Failed to fetch route summary:', e);
+      
+      // Handle specific error cases
       if (e.response?.status === 404) {
-        setInfo('No GPS tracking data available for this route yet.');
+        setInfo('No GPS tracking data available for this route yet. Start tracking to see analytics.');
+        setRouteSummary(null);
+        setOptimizationMetrics(null);
+      } else {
+        setError('Failed to fetch route analytics');
       }
     } finally {
       setLoadingSummary(false);
     }
   }, [selectedRouteId]);
 
-  // Enhanced GPS tracking with proper filtering
+  // Start monitoring for admin users (no GPS tracking)
+  const startMonitoring = useCallback(async () => {
+    if (!selectedRouteId) {
+      setError('Please select a route first');
+      return;
+    }
+
+    try {
+      // Just start backend monitoring session
+      const response = await api.post('/transactions/route-location-pings/start_route_monitoring/', {
+        route_id: selectedRouteId
+      });
+      
+      setInfo('Route monitoring started - watching for GPS updates from salesperson');
+      setIsMonitoring(true);
+      
+      // Set up polling for real-time updates
+      monitoringIntervalRef.current = setInterval(() => {
+        fetchRoutePings();
+        fetchRouteSummary();
+      }, 30000); // Poll every 30 seconds
+      
+    } catch (e) {
+      console.error('Failed to start monitoring:', e);
+      setError('Failed to start monitoring: ' + (e.response?.data?.detail || e.message));
+    }
+  }, [selectedRouteId, fetchRoutePings, fetchRouteSummary]);
+
+  // Start route tracking with improved GPS settings for salesperson
   const startTracking = useCallback(async () => {
     if (!selectedRouteId) {
       setError('Please select a route first');
+      return;
+    }
+
+    try {
+      // Start tracking on backend
+      const response = await api.post('/transactions/route-location-pings/start_route_tracking/', {
+        route_id: selectedRouteId
+      });
+      
+      if (response.data.status === 'active') {
+        setInfo('Route tracking already active - continuing existing session');
+      } else {
+        setInfo('Route tracking started - GPS monitoring active');
+      }
+    } catch (e) {
+      console.error('Failed to start tracking:', e);
+      setError('Failed to start tracking: ' + (e.response?.data?.detail || e.message));
       return;
     }
 
@@ -349,90 +213,63 @@ const RouteLiveTracker = () => {
       return;
     }
 
-    try {
-      const response = await api.post('/transactions/route-location-pings/start_route_tracking/', {
-        route_id: selectedRouteId
-      });
-      
-      setInfo('GPS tracking started with enhanced filtering');
-      setIsTracking(true);
-      
-      // Reset tracking state
-      locationHistoryRef.current = [];
-      lastPingTimeRef.current = 0;
-      
-    } catch (e) {
-      console.error('Failed to start tracking:', e);
-      setError('Failed to start tracking: ' + (e.response?.data?.detail || e.message));
-      return;
-    }
-
+    setIsTracking(true);
     const id = navigator.geolocation.watchPosition(async (position) => {
-      // Validate GPS reading
-      const validation = isValidGPSReading(position);
-      if (!validation.valid) {
-        console.log(`GPS reading rejected: ${validation.reason}`);
+      const newLocation = {
+        lat: position.coords.latitude,
+        lon: position.coords.longitude
+      };
+      
+      const accuracy = position.coords.accuracy;
+
+      // Filter out inaccurate readings
+      if (!isAccurateEnough(accuracy)) {
+        setInfo(`Location skipped - poor GPS accuracy: ${accuracy?.toFixed(1)}m`);
         return;
       }
 
-      const rawLocation = {
-        lat: position.coords.latitude,
-        lon: position.coords.longitude,
-        accuracy: position.coords.accuracy,
-        timestamp: new Date(position.timestamp)
-      };
+      // Clear any accuracy errors
+      if (error.includes('accuracy')) {
+        setError('');
+      }
 
-      // Apply GPS smoothing
-      const smoothedLocation = smoothGPSReading(rawLocation);
-      
       // Always update current location for display
-      setCurrentLocation(smoothedLocation);
+      setCurrentLocation(newLocation);
 
-      // Check for significant movement
-      const hasMoved = hasMovedSignificantly(
-        lastConfirmedLocation, 
-        smoothedLocation, 
-        position.coords.accuracy
-      );
+      // Check for significant movement before sending ping
+      const hasMoved = hasMovedSignificantly(lastConfirmedLocation, newLocation, accuracy);
       
       if (hasMoved) {
         const payload = {
           route: selectedRouteId,
-          lat: smoothedLocation.lat,
-          lon: smoothedLocation.lon,
-          accuracy_meters: position.coords.accuracy,
-          speed_mps: position.coords.speed,
-          heading_degrees: position.coords.heading,
+          lat: position.coords.latitude,
+          lon: position.coords.longitude,
+          accuracy_meters: accuracy ? Math.round(accuracy * 1000000) / 1000000 : null,
+          speed_mps: position.coords.speed ? Math.round(position.coords.speed * 10000) / 10000 : null,
+          heading_degrees: position.coords.heading ? Math.round(position.coords.heading * 100) / 100 : null,
         };
+        
+        // Update confirmed location
+        setLastConfirmedLocation(newLocation);
         
         try {
           const response = await api.post('/transactions/route-location-pings/', payload);
-          
           const distance = lastConfirmedLocation ? 
-            calculateDistance(
-              lastConfirmedLocation.lat, lastConfirmedLocation.lon, 
-              smoothedLocation.lat, smoothedLocation.lon
-            ) : 0;
+            calculateDistance(lastConfirmedLocation.lat, lastConfirmedLocation.lon, newLocation.lat, newLocation.lon) : 0;
+          setInfo(`GPS ping sent - moved ${distance.toFixed(1)}m (accuracy: ${accuracy?.toFixed(1)}m)`);
           
-          // Update confirmed location and timestamp
-          setLastConfirmedLocation(smoothedLocation);
-          lastPingTimeRef.current = Date.now();
+          // Update pings state for real-time display
+          setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
           
-          // Show meaningful movement info
-          if (distance > 0) {
-            setInfo(`GPS ping sent - moved ${distance.toFixed(0)}m (accuracy: ${position.coords.accuracy?.toFixed(0)}m)`);
-          }
-          
-          // WebSocket will handle real-time updates automatically
-          
+          // Fetch updated summary
+          fetchRouteSummary();
         } catch (e) {
           console.error('Failed to send location:', e);
-          const errorMsg = e?.response?.data?.detail || 'Failed to send GPS ping';
+          const errorMsg = e?.response?.data?.detail || e?.response?.data || 'Failed to send location';
           setError(errorMsg);
         }
       } else {
-        // Don't show toast for stationary readings to avoid spam
-        console.log(`Stationary - accuracy: ${position.coords.accuracy?.toFixed(1)}m`);
+        setInfo(`Stationary - accuracy: ${accuracy?.toFixed(1)}m`);
       }
     }, (err) => {
       setIsTracking(false);
@@ -448,39 +285,16 @@ const RouteLiveTracker = () => {
           setError('Location request timed out.');
           break;
         default:
-          setError(err.message || 'GPS tracking error');
+          setError(err.message || 'Unknown location error');
       }
     }, { 
-      enableHighAccuracy: true,
-      timeout: 20000,               // Increased timeout
-      maximumAge: 30000            // Reduced maximum age for fresher readings
+      enableHighAccuracy: true,     // Use high accuracy for better precision
+      timeout: 15000,               // 15 second timeout for responsive updates
+      maximumAge: 60000            // 1 minute maximum age for fresher readings
     });
     
     watchIdRef.current = id;
-  }, [selectedRouteId, lastConfirmedLocation, hasMovedSignificantly, isValidGPSReading, smoothGPSReading, calculateDistance]);
-
-  // Start monitoring for admin users
-  const startMonitoring = useCallback(async () => {
-    if (!selectedRouteId) {
-      setError('Please select a route first');
-      return;
-    }
-
-    try {
-      const response = await api.post('/transactions/route-location-pings/start_route_monitoring/', {
-        route_id: selectedRouteId
-      });
-      
-      setInfo('Route monitoring started - watching for real-time GPS updates');
-      setIsMonitoring(true);
-      
-      // WebSocket will handle real-time updates automatically
-      
-    } catch (e) {
-      console.error('Failed to start monitoring:', e);
-      setError('Failed to start monitoring: ' + (e.response?.data?.detail || e.message));
-    }
-  }, [selectedRouteId]);
+  }, [selectedRouteId, fetchRouteSummary, lastConfirmedLocation, hasMovedSignificantly, isAccurateEnough, calculateDistance, error]);
 
   // Stop tracking/monitoring
   const stopTracking = useCallback(async () => {
@@ -489,9 +303,9 @@ const RouteLiveTracker = () => {
       watchIdRef.current = null;
     }
     
-    if (websocketRef.current) {
-      websocketRef.current.close();
-      websocketRef.current = null;
+    if (monitoringIntervalRef.current !== null) {
+      clearInterval(monitoringIntervalRef.current);
+      monitoringIntervalRef.current = null;
     }
     
     try {
@@ -500,23 +314,21 @@ const RouteLiveTracker = () => {
         route_id: selectedRouteId
       });
       
+      // Fetch final summary
       await fetchRouteSummary();
       const action = userRole === 'admin' ? 'monitoring' : 'tracking';
-      setInfo(`${action.charAt(0).toUpperCase() + action.slice(1)} stopped`);
+      setInfo(`${action.charAt(0).toUpperCase() + action.slice(1)} stopped and summary generated`);
     } catch (e) {
       console.error('Failed to stop tracking/monitoring:', e);
+      const action = userRole === 'admin' ? 'monitoring' : 'tracking';
+      setError(`Failed to stop ${action}: ` + (e.response?.data?.detail || e.message));
     }
     
     setIsTracking(false);
     setIsMonitoring(false);
-    
-    // Re-initialize WebSocket for continued updates
-    if (selectedRouteId) {
-      setTimeout(initWebSocket, 1000);
-    }
-  }, [selectedRouteId, fetchRouteSummary, userRole, initWebSocket]);
+  }, [selectedRouteId, fetchRouteSummary, userRole]);
 
-  // Unified start function
+  // Unified start function that chooses based on role
   const handleStartAction = useCallback(() => {
     if (userRole === 'admin') {
       startMonitoring();
@@ -525,53 +337,32 @@ const RouteLiveTracker = () => {
     }
   }, [userRole, startMonitoring, startTracking]);
 
-  // Manual ping with enhanced validation
-  const sendManualPing = useCallback(async () => {
-    if (!navigator.geolocation || !selectedRouteId || userRole === 'admin') {
-      setError('Manual ping not available');
-      return;
+  // Fetch data when route changes
+  useEffect(() => {
+    if (selectedRouteId) {
+      fetchRoutePings();
+      fetchRouteSummary();
+      // Reset location states when switching routes
+      setLastConfirmedLocation(null);
+      setCurrentLocation(null);
+    } else {
+      setPings([]);
+      setRouteSummary(null);
+      setOptimizationMetrics(null);
     }
+  }, [selectedRouteId, fetchRoutePings, fetchRouteSummary]);
 
-    // Check time interval
-    if (Date.now() - lastPingTimeRef.current < GPS_CONFIG.MIN_TIME_INTERVAL) {
-      const waitTime = Math.ceil((GPS_CONFIG.MIN_TIME_INTERVAL - (Date.now() - lastPingTimeRef.current)) / 1000);
-      setError(`Please wait ${waitTime} seconds before sending another ping`);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      const validation = isValidGPSReading(position);
-      if (!validation.valid) {
-        setError(`Cannot send manual ping - ${validation.reason}`);
-        return;
-      }
-
-      const payload = {
-        route: selectedRouteId,
-        lat: position.coords.latitude,
-        lon: position.coords.longitude,
-        accuracy_meters: position.coords.accuracy,
-        speed_mps: position.coords.speed,
-        heading_degrees: position.coords.heading,
-      };
+  // Set up polling for real-time updates
+  useEffect(() => {
+    if ((isTracking || isMonitoring) && selectedRouteId) {
+      const interval = setInterval(() => {
+        fetchRoutePings();
+        fetchRouteSummary();
+      }, 300000); // Poll every 5 minutes
       
-      try {
-        await api.post('/transactions/route-location-pings/', payload);
-        setInfo(`Manual GPS ping sent (accuracy: ${position.coords.accuracy?.toFixed(0)}m)`);
-        setLastConfirmedLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
-        lastPingTimeRef.current = Date.now();
-      } catch (e) {
-        console.error('Failed to send manual ping:', e);
-        setError('Failed to send manual ping');
-      }
-    }, (err) => {
-      setError('Failed to get current location for manual ping');
-    }, {
-      enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 30000
-    });
-  }, [selectedRouteId, isValidGPSReading, userRole]);
+      return () => clearInterval(interval);
+    }
+  }, [isTracking, isMonitoring, selectedRouteId, fetchRoutePings, fetchRouteSummary]);
 
   // Get selected route details
   const selectedRoute = useMemo(() => 
@@ -597,6 +388,7 @@ const RouteLiveTracker = () => {
         
         center = [(minLat + maxLat) / 2, (minLon + maxLon) / 2];
         
+        // Calculate zoom based on bounds
         const latDiff = maxLat - minLat;
         const lonDiff = maxLon - minLon;
         const maxDiff = Math.max(latDiff, lonDiff);
@@ -606,10 +398,64 @@ const RouteLiveTracker = () => {
         else if (maxDiff < 0.1) zoom = 11;
         else zoom = 9;
       }
+    } else if (selectedRoute.visits && selectedRoute.visits.length > 0) {
+      const visitsWithCoords = selectedRoute.visits.filter(v => v.lat && v.lon && !isNaN(v.lat) && !isNaN(v.lon));
+      if (visitsWithCoords.length > 0) {
+        const lats = visitsWithCoords.map(v => parseFloat(v.lat));
+        const lons = visitsWithCoords.map(v => parseFloat(v.lon));
+        center = [
+          (Math.min(...lats) + Math.max(...lats)) / 2,
+          (Math.min(...lons) + Math.max(...lons)) / 2
+        ];
+        zoom = 12;
+      }
     }
     
     return { center, zoom };
   }, [selectedRoute, pings]);
+
+  // Manual ping function (only for salesperson)
+  const sendManualPing = useCallback(async () => {
+    if (!navigator.geolocation || !selectedRouteId || userRole === 'admin') {
+      setError('Manual ping not available for admin users');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const accuracy = position.coords.accuracy;
+      
+      if (!isAccurateEnough(accuracy)) {
+        setError(`Cannot send manual ping - GPS accuracy too poor: ${accuracy?.toFixed(1)}m`);
+        return;
+      }
+
+      const payload = {
+        route: selectedRouteId,
+        lat: position.coords.latitude,
+        lon: position.coords.longitude,
+        accuracy_meters: accuracy ? Math.round(accuracy * 1000000) / 1000000 : null,
+        speed_mps: position.coords.speed ? Math.round(position.coords.speed * 10000) / 10000 : null,
+        heading_degrees: position.coords.heading ? Math.round(position.coords.heading * 100) / 100 : null,
+      };
+      
+      try {
+        await api.post('/transactions/route-location-pings/', payload);
+        setInfo(`Manual GPS ping sent (accuracy: ${accuracy?.toFixed(1)}m)`);
+        setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
+        setLastConfirmedLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
+        fetchRouteSummary();
+      } catch (e) {
+        console.error('Failed to send manual ping:', e);
+        setError('Failed to send manual ping: ' + (e.response?.data?.detail || e.message));
+      }
+    }, (err) => {
+      setError('Failed to get current location for manual ping');
+    }, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 30000
+    });
+  }, [selectedRouteId, isAccurateEnough, fetchRouteSummary, userRole]);
 
   if (loadingRoutes && routes.length === 0) {
     return <Loader />;
@@ -624,7 +470,7 @@ const RouteLiveTracker = () => {
       <div className="max-w-7xl mx-auto space-y-6">
         <PageHeader
           title="Route Live Tracker"
-          subtitle={`Enhanced GPS ${userRole === 'admin' ? 'monitoring' : 'tracking'} with intelligent filtering and real-time WebSocket updates`}
+          subtitle={`Advanced GPS ${userRole === 'admin' ? 'monitoring' : 'tracking'} with smart movement detection and real-time optimization analytics`}
         />
 
         {/* Controls Panel */}
@@ -646,12 +492,9 @@ const RouteLiveTracker = () => {
                 ))}
               </select>
               {selectedRoute && (
-                <div className="mt-2 text-sm text-gray-600">
-                  <p>Salesperson: {selectedRoute.salesperson_name || 'N/A'}</p>
-                  <p className="text-xs text-blue-600">
-                    WebSocket: {websocketRef.current?.readyState === 1 ? '🟢 Connected' : '🔴 Disconnected'}
-                  </p>
-                </div>
+                <p className="mt-2 text-sm text-gray-600">
+                  Salesperson: {selectedRoute.salesperson_name || 'N/A'}
+                </p>
               )}
               {userRole && (
                 <p className="mt-1 text-xs text-blue-600">
@@ -660,7 +503,7 @@ const RouteLiveTracker = () => {
               )}
             </div>
 
-            {/* Enhanced Tracking Controls */}
+            {/* Tracking/Monitoring Controls */}
             <div className="flex flex-col justify-end">
               <div className="flex gap-2">
                 {!isActive ? (
@@ -687,12 +530,7 @@ const RouteLiveTracker = () => {
                     {userRole !== 'admin' && (
                       <button
                         onClick={sendManualPing}
-                        disabled={Date.now() - lastPingTimeRef.current < GPS_CONFIG.MIN_TIME_INTERVAL}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-                        title={Date.now() - lastPingTimeRef.current < GPS_CONFIG.MIN_TIME_INTERVAL 
-                          ? `Wait ${Math.ceil((GPS_CONFIG.MIN_TIME_INTERVAL - (Date.now() - lastPingTimeRef.current)) / 1000)}s` 
-                          : 'Send manual GPS ping'
-                        }
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
                       >
                         📍 Manual Ping
                       </button>
@@ -703,11 +541,12 @@ const RouteLiveTracker = () => {
               {isActive && (
                 <div className="mt-2 space-y-1">
                   <p className="text-sm text-gray-600">
-                    🟢 {statusLabel} active {userRole === 'admin' && '(monitoring only)'}
+                    🟢 {statusLabel} active
+                    {userRole === 'admin' && ' (read-only)'}
                   </p>
-                  {userRole !== 'admin' && (
+                  {userRole !== 'admin' && currentLocation && lastConfirmedLocation && (
                     <p className="text-xs text-gray-500">
-                      Min distance: {GPS_CONFIG.MIN_DISTANCE}m | Min interval: {GPS_CONFIG.MIN_TIME_INTERVAL/1000}s
+                      Threshold: {Math.max(20, (currentLocation.accuracy || 25) * 2).toFixed(0)}m
                     </p>
                   )}
                 </div>
@@ -748,29 +587,6 @@ const RouteLiveTracker = () => {
             </div>
           </div>
         </div>
-
-        {/* Enhanced GPS Status Display */}
-        {isActive && (
-          <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg border border-green-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm font-medium">Live {statusLabel}</span>
-                </div>
-                {currentLocation && userRole !== 'admin' && (
-                  <div className="text-sm text-gray-600">
-                    Last update: {new Date().toLocaleTimeString()}
-                    {currentLocation.accuracy && ` (±${currentLocation.accuracy.toFixed(0)}m)`}
-                  </div>
-                )}
-              </div>
-              <div className="text-sm text-gray-600">
-                GPS History: {locationHistoryRef.current.length} smoothed readings
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Map Container */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -825,7 +641,7 @@ const RouteLiveTracker = () => {
                       key={`ping-${ping.id || index}`} 
                       position={{ lat: parseFloat(ping.lat), lng: parseFloat(ping.lon) }}
                       icon={{
-                        path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.87-3.13-7-7-7z',
+                        path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
                         fillColor: 'red',
                         fillOpacity: 0.8,
                         strokeWeight: 2,
@@ -836,19 +652,14 @@ const RouteLiveTracker = () => {
                   ) : null
                 ))}
 
-                {showRealTime && isActive && currentLocation && userRole !== 'admin' && (
+                {showRealTime && isActive && pings.length > 0 && (
                   <Circle
                     center={{ 
-                      lat: currentLocation.lat, 
-                      lng: currentLocation.lon 
+                      lat: parseFloat(pings[pings.length - 1].lat), 
+                      lng: parseFloat(pings[pings.length - 1].lon) 
                     }}
-                    radius={currentLocation.accuracy || 50}
-                    options={{ 
-                      strokeColor: '#10B981', 
-                      fillColor: '#10B981', 
-                      fillOpacity: 0.2,
-                      strokeWeight: 2
-                    }}
+                    radius={50}
+                    options={{ strokeColor: '#10B981', fillColor: '#10B981', fillOpacity: 0.3 }}
                   />
                 )}
               </GoogleMap>
