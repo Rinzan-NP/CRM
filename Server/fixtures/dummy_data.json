@@ -1,0 +1,634 @@
+[
+  {
+    "model": "accounts.user",
+    "pk": "550e8400-e29b-41d4-a716-446655440001",
+    "fields": {
+      "username": "admin_user",
+      "first_name": "John",
+      "last_name": "Administrator",
+      "email": "admin@company.com",
+      "password": "pbkdf2_sha256$600000$randomsalt123$hashedpassword123==",
+      "is_staff": true,
+      "is_superuser": true,
+      "role": "admin",
+      "blocked": false,
+      "date_joined": "2024-01-15T08:00:00Z",
+      "is_active": true
+    }
+  },
+  {
+    "model": "accounts.user",
+    "pk": "550e8400-e29b-41d4-a716-446655440002",
+    "fields": {
+      "username": "salesperson5",
+      "first_name": "Sarah",
+      "last_name": "Johnson",
+      "email": "sarah.johnson@company.com",
+      "password": "pbkdf2_sha256$600000$randomsalt124$hashedpassword124==",
+      "is_staff": false,
+      "is_superuser": false,
+      "role": "salesperson",
+      "blocked": false,
+      "date_joined": "2024-02-01T09:00:00Z",
+      "is_active": true
+    }
+  },
+  {
+    "model": "accounts.user",
+    "pk": "550e8400-e29b-41d4-a716-446655440003",
+    "fields": {
+      "username": "salesperson2",
+      "first_name": "Mike",
+      "last_name": "Wilson",
+      "email": "mike.wilson@company.com",
+      "password": "pbkdf2_sha256$600000$randomsalt125$hashedpassword125==",
+      "is_staff": false,
+      "is_superuser": false,
+      "role": "salesperson",
+      "blocked": false,
+      "date_joined": "2024-02-15T10:00:00Z",
+      "is_active": true
+    }
+  },
+  {
+    "model": "accounts.user",
+    "pk": "550e8400-e29b-41d4-a716-446655440004",
+    "fields": {
+      "username": "accountant1",
+      "first_name": "Emily",
+      "last_name": "Davis",
+      "email": "emily.davis@company.com",
+      "password": "pbkdf2_sha256$600000$randomsalt126$hashedpassword126==",
+      "is_staff": false,
+      "is_superuser": false,
+      "role": "accountant",
+      "blocked": false,
+      "date_joined": "2024-01-20T11:00:00Z",
+      "is_active": true
+    }
+  },
+  {
+    "model": "main.vatsettings",
+    "pk": 1,
+    "fields": {
+      "category": "Standard",
+      "rate": "18.00"
+    }
+  },
+  {
+    "model": "main.vatsettings",
+    "pk": 2,
+    "fields": {
+      "category": "Reduced",
+      "rate": "5.00"
+    }
+  },
+  {
+    "model": "main.vatsettings",
+    "pk": 3,
+    "fields": {
+      "category": "Exempt",
+      "rate": "0.00"
+    }
+  },
+  {
+    "model": "main.customer",
+    "pk": 1,
+    "fields": {
+      "name": "ABC Electronics Ltd",
+      "email": "contact@abcelectronics.com",
+      "phone": "+91-9876543210",
+      "credit_limit": "50000.00",
+      "address": "123 Tech Park, Electronics City",
+      "lat": "12.845669",
+      "lon": "77.663880",
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "country": "India",
+      "postal_code": "560100",
+      "location_verified": true,
+      "current_balance": "12500.00",
+      "created_at": "2024-01-10T10:00:00Z",
+      "updated_at": "2024-08-20T15:30:00Z"
+    }
+  },
+  {
+    "model": "main.customer",
+    "pk": 2,
+    "fields": {
+      "name": "TechnoMart Solutions",
+      "email": "orders@technomart.com",
+      "phone": "+91-9876543211",
+      "credit_limit": "75000.00",
+      "address": "456 Business Complex, Whitefield",
+      "lat": "12.969910",
+      "lon": "77.750290",
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "country": "India",
+      "postal_code": "560066",
+      "location_verified": true,
+      "current_balance": "8750.00",
+      "created_at": "2024-01-15T11:00:00Z",
+      "updated_at": "2024-08-21T12:45:00Z"
+    }
+  },
+  {
+    "model": "main.customer",
+    "pk": 3,
+    "fields": {
+      "name": "Digital Dynamics Pvt Ltd",
+      "email": "procurement@digitaldynamics.com",
+      "phone": "+91-9876543212",
+      "credit_limit": "100000.00",
+      "address": "789 Innovation Hub, Koramangala",
+      "lat": "12.935240",
+      "lon": "77.624480",
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "country": "India",
+      "postal_code": "560034",
+      "location_verified": true,
+      "current_balance": "25600.00",
+      "created_at": "2024-02-01T09:30:00Z",
+      "updated_at": "2024-08-22T14:20:00Z"
+    }
+  },
+  {
+    "model": "main.customer",
+    "pk": 4,
+    "fields": {
+      "name": "Smart Systems Corp",
+      "email": "admin@smartsystems.com",
+      "phone": "+91-9876543213",
+      "credit_limit": "60000.00",
+      "address": "321 Tech Avenue, HSR Layout",
+      "lat": "12.912350",
+      "lon": "77.638450",
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "country": "India",
+      "postal_code": "560102",
+      "location_verified": true,
+      "current_balance": "15400.00",
+      "created_at": "2024-02-10T13:15:00Z",
+      "updated_at": "2024-08-23T10:10:00Z"
+    }
+  },
+  {
+    "model": "main.supplier",
+    "pk": 1,
+    "fields": {
+      "name": "Global Components Ltd",
+      "email": "sales@globalcomponents.com",
+      "phone": "+91-9988776655",
+      "address": "Industrial Area, Phase 2, Gurgaon",
+      "credit_limit": "200000.00",
+      "current_balance": "45000.00",
+      "created_at": "2024-01-05T08:00:00Z",
+      "updated_at": "2024-08-20T16:00:00Z"
+    }
+  },
+  {
+    "model": "main.supplier",
+    "pk": 2,
+    "fields": {
+      "name": "Tech Parts Distributor",
+      "email": "orders@techparts.com",
+      "phone": "+91-9988776656",
+      "address": "Electronic Market, Nehru Place, Delhi",
+      "credit_limit": "150000.00",
+      "current_balance": "32000.00",
+      "created_at": "2024-01-12T09:30:00Z",
+      "updated_at": "2024-08-21T11:45:00Z"
+    }
+  },
+  {
+    "model": "main.product",
+    "pk": "550e8400-e29b-41d4-a716-446655440101",
+    "fields": {
+      "code": "LAPTOP001",
+      "name": "Business Laptop - Intel i7",
+      "unit_price": "75000.00",
+      "unit_cost": "65000.00",
+      "vat_category": 1,
+      "is_active": true,
+      "created_at": "2024-01-08T10:00:00Z",
+      "updated_at": "2024-08-15T14:30:00Z"
+    }
+  },
+  {
+    "model": "main.product",
+    "pk": "550e8400-e29b-41d4-a716-446655440102",
+    "fields": {
+      "code": "MOUSE001",
+      "name": "Wireless Mouse - Ergonomic",
+      "unit_price": "1500.00",
+      "unit_cost": "1200.00",
+      "vat_category": 1,
+      "is_active": true,
+      "created_at": "2024-01-08T10:15:00Z",
+      "updated_at": "2024-08-15T14:35:00Z"
+    }
+  },
+  {
+    "model": "main.product",
+    "pk": "550e8400-e29b-41d4-a716-446655440103",
+    "fields": {
+      "code": "KEYBOARD001",
+      "name": "Mechanical Keyboard - RGB",
+      "unit_price": "5500.00",
+      "unit_cost": "4200.00",
+      "vat_category": 1,
+      "is_active": true,
+      "created_at": "2024-01-08T10:30:00Z",
+      "updated_at": "2024-08-15T14:40:00Z"
+    }
+  },
+  {
+    "model": "main.product",
+    "pk": "550e8400-e29b-41d4-a716-446655440104",
+    "fields": {
+      "code": "MONITOR001",
+      "name": "4K Monitor 27 inch",
+      "unit_price": "28000.00",
+      "unit_cost": "24000.00",
+      "vat_category": 1,
+      "is_active": true,
+      "created_at": "2024-01-08T10:45:00Z",
+      "updated_at": "2024-08-15T14:45:00Z"
+    }
+  },
+  {
+    "model": "main.product",
+    "pk": "550e8400-e29b-41d4-a716-446655440105",
+    "fields": {
+      "code": "CABLE001",
+      "name": "HDMI Cable - 2m",
+      "unit_price": "800.00",
+      "unit_cost": "500.00",
+      "vat_category": 2,
+      "is_active": true,
+      "created_at": "2024-01-08T11:00:00Z",
+      "updated_at": "2024-08-15T14:50:00Z"
+    }
+  },
+  {
+    "model": "transactions.salesorder",
+    "pk": "550e8400-e29b-41d4-a716-446655440201",
+    "fields": {
+      "order_number": "SO-20240815-001",
+      "customer": 1,
+      "order_date": "2024-08-15",
+      "status": "confirmed",
+      "subtotal": "76500.00",
+      "vat_total": "13770.00",
+      "grand_total": "90270.00",
+      "profit": "11500.00",
+      "prices_include_vat": false,
+      "created_at": "2024-08-15T09:00:00Z",
+      "updated_at": "2024-08-15T16:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.salesorder",
+    "pk": "550e8400-e29b-41d4-a716-446655440202",
+    "fields": {
+      "order_number": "SO-20240820-001",
+      "customer": 2,
+      "order_date": "2024-08-20",
+      "status": "invoiced",
+      "subtotal": "34300.00",
+      "vat_total": "6174.00",
+      "grand_total": "40474.00",
+      "profit": "6100.00",
+      "prices_include_vat": false,
+      "created_at": "2024-08-20T10:30:00Z",
+      "updated_at": "2024-08-20T17:45:00Z"
+    }
+  },
+  {
+    "model": "transactions.salesorder",
+    "pk": "550e8400-e29b-41d4-a716-446655440203",
+    "fields": {
+      "order_number": "SO-20240822-001",
+      "customer": 3,
+      "order_date": "2024-08-22",
+      "status": "confirmed",
+      "subtotal": "110340.00",
+      "vat_total": "19861.20",
+      "grand_total": "130201.20",
+      "profit": "20140.00",
+      "prices_include_vat": false,
+      "created_at": "2024-08-22T11:15:00Z",
+      "updated_at": "2024-08-22T18:20:00Z"
+    }
+  },
+  {
+    "model": "transactions.orderlineitem",
+    "pk": "550e8400-e29b-41d4-a716-446655440301",
+    "fields": {
+      "sales_order": "550e8400-e29b-41d4-a716-446655440201",
+      "product": "550e8400-e29b-41d4-a716-446655440101",
+      "quantity": 1,
+      "unit_price": "75000.00",
+      "discount": "0.00",
+      "line_total": "75000.00",
+      "created_at": "2024-08-15T09:15:00Z",
+      "updated_at": "2024-08-15T09:15:00Z"
+    }
+  },
+  {
+    "model": "transactions.orderlineitem",
+    "pk": "550e8400-e29b-41d4-a716-446655440302",
+    "fields": {
+      "sales_order": "550e8400-e29b-41d4-a716-446655440201",
+      "product": "550e8400-e29b-41d4-a716-446655440102",
+      "quantity": 1,
+      "unit_price": "1500.00",
+      "discount": "0.00",
+      "line_total": "1500.00",
+      "created_at": "2024-08-15T09:20:00Z",
+      "updated_at": "2024-08-15T09:20:00Z"
+    }
+  },
+  {
+    "model": "transactions.orderlineitem",
+    "pk": "550e8400-e29b-41d4-a716-446655440303",
+    "fields": {
+      "sales_order": "550e8400-e29b-41d4-a716-446655440202",
+      "product": "550e8400-e29b-41d4-a716-446655440104",
+      "quantity": 1,
+      "unit_price": "28000.00",
+      "discount": "0.00",
+      "line_total": "28000.00",
+      "created_at": "2024-08-20T10:45:00Z",
+      "updated_at": "2024-08-20T10:45:00Z"
+    }
+  },
+  {
+    "model": "transactions.orderlineitem",
+    "pk": "550e8400-e29b-41d4-a716-446655440304",
+    "fields": {
+      "sales_order": "550e8400-e29b-41d4-a716-446655440202",
+      "product": "550e8400-e29b-41d4-a716-446655440103",
+      "quantity": 1,
+      "unit_price": "5500.00",
+      "discount": "0.00",
+      "line_total": "5500.00",
+      "created_at": "2024-08-20T10:50:00Z",
+      "updated_at": "2024-08-20T10:50:00Z"
+    }
+  },
+  {
+    "model": "transactions.orderlineitem",
+    "pk": "550e8400-e29b-41d4-a716-446655440305",
+    "fields": {
+      "sales_order": "550e8400-e29b-41d4-a716-446655440202",
+      "product": "550e8400-e29b-41d4-a716-446655440105",
+      "quantity": 1,
+      "unit_price": "800.00",
+      "discount": "0.00",
+      "line_total": "800.00",
+      "created_at": "2024-08-20T10:55:00Z",
+      "updated_at": "2024-08-20T10:55:00Z"
+    }
+  },
+  {
+    "model": "transactions.orderlineitem",
+    "pk": "550e8400-e29b-41d4-a716-446655440306",
+    "fields": {
+      "sales_order": "550e8400-e29b-41d4-a716-446655440203",
+      "product": "550e8400-e29b-41d4-a716-446655440101",
+      "quantity": 1,
+      "unit_price": "75000.00",
+      "discount": "5.00",
+      "line_total": "71250.00",
+      "created_at": "2024-08-22T11:30:00Z",
+      "updated_at": "2024-08-22T11:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.orderlineitem",
+    "pk": "550e8400-e29b-41d4-a716-446655440307",
+    "fields": {
+      "sales_order": "550e8400-e29b-41d4-a716-446655440203",
+      "product": "550e8400-e29b-41d4-a716-446655440104",
+      "quantity": 1,
+      "unit_price": "28000.00",
+      "discount": "0.00",
+      "line_total": "28000.00",
+      "created_at": "2024-08-22T11:35:00Z",
+      "updated_at": "2024-08-22T11:35:00Z"
+    }
+  },
+  {
+    "model": "transactions.orderlineitem",
+    "pk": "550e8400-e29b-41d4-a716-446655440308",
+    "fields": {
+      "sales_order": "550e8400-e29b-41d4-a716-446655440203",
+      "product": "550e8400-e29b-41d4-a716-446655440103",
+      "quantity": 2,
+      "unit_price": "5500.00",
+      "discount": "0.00",
+      "line_total": "11000.00",
+      "created_at": "2024-08-22T11:40:00Z",
+      "updated_at": "2024-08-22T11:40:00Z"
+    }
+  },
+  {
+    "model": "transactions.purchaseorder",
+    "pk": "550e8400-e29b-41d4-a716-446655440401",
+    "fields": {
+      "order_number": "PO-20240810-001",
+      "supplier": 1,
+      "order_date": "2024-08-10",
+      "status": "confirmed",
+      "subtotal": "260000.00",
+      "vat_total": "46800.00",
+      "grand_total": "306800.00",
+      "prices_include_vat": false,
+      "created_at": "2024-08-10T08:30:00Z",
+      "updated_at": "2024-08-10T16:00:00Z"
+    }
+  },
+  {
+    "model": "transactions.purchaseorderlineitem",
+    "pk": "550e8400-e29b-41d4-a716-446655440501",
+    "fields": {
+      "purchase_order": "550e8400-e29b-41d4-a716-446655440401",
+      "product": "550e8400-e29b-41d4-a716-446655440101",
+      "quantity": 4,
+      "unit_cost": "65000.00",
+      "discount": "0.00",
+      "line_total": "260000.00",
+      "created_at": "2024-08-10T08:45:00Z",
+      "updated_at": "2024-08-10T08:45:00Z"
+    }
+  },
+  {
+    "model": "transactions.invoice",
+    "pk": "550e8400-e29b-41d4-a716-446655440601",
+    "fields": {
+      "sales_order": "550e8400-e29b-41d4-a716-446655440202",
+      "invoice_no": "INV-20240821-001",
+      "issue_date": "2024-08-21",
+      "due_date": "2024-09-20",
+      "amount_due": "40474.00",
+      "paid_amount": "15000.00",
+      "status": "sent",
+      "created_at": "2024-08-21T09:00:00Z",
+      "updated_at": "2024-08-22T14:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.payment",
+    "pk": "550e8400-e29b-41d4-a716-446655440701",
+    "fields": {
+      "invoice": "550e8400-e29b-41d4-a716-446655440601",
+      "amount": "15000.00",
+      "paid_on": "2024-08-22",
+      "mode": "bank",
+      "created_at": "2024-08-22T14:30:00Z",
+      "updated_at": "2024-08-22T14:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.route",
+    "pk": "550e8400-e29b-41d4-a716-446655440801",
+    "fields": {
+      "route_number": "RT-20240823-001",
+      "salesperson": "550e8400-e29b-41d4-a716-446655440002",
+      "name": "Bangalore East Route",
+      "date": "2024-08-23",
+      "start_time": "09:00:00",
+      "end_time": "17:00:00",
+      "created_at": "2024-08-23T08:00:00Z",
+      "updated_at": "2024-08-23T08:00:00Z"
+    }
+  },
+  {
+    "model": "transactions.route",
+    "pk": "550e8400-e29b-41d4-a716-446655440802",
+    "fields": {
+      "route_number": "RT-20240823-002",
+      "salesperson": "550e8400-e29b-41d4-a716-446655440003",
+      "name": "Bangalore South Route",
+      "date": "2024-08-23",
+      "start_time": "10:00:00",
+      "end_time": "18:00:00",
+      "created_at": "2024-08-23T08:30:00Z",
+      "updated_at": "2024-08-23T08:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.routevisit",
+    "pk": "550e8400-e29b-41d4-a716-446655440901",
+    "fields": {
+      "route": "550e8400-e29b-41d4-a716-446655440801",
+      "customer": 1,
+      "check_in": "2024-08-23T10:30:00Z",
+      "check_out": "2024-08-23T11:15:00Z",
+      "lat": "12.845669",
+      "lon": "77.663880",
+      "status": "visited",
+      "notes": "Discussed new product requirements. Customer interested in bulk orders.",
+      "payment_collected": true,
+      "payment_amount": "5000.00",
+      "issues_reported": "",
+      "visit_duration_minutes": 45,
+      "created_at": "2024-08-23T10:30:00Z",
+      "updated_at": "2024-08-23T11:15:00Z"
+    }
+  },
+  {
+    "model": "transactions.routevisit",
+    "pk": "550e8400-e29b-41d4-a716-446655440902",
+    "fields": {
+      "route": "550e8400-e29b-41d4-a716-446655440801",
+      "customer": 2,
+      "check_in": "2024-08-23T14:00:00Z",
+      "check_out": "2024-08-23T14:30:00Z",
+      "lat": "12.969910",
+      "lon": "77.750290",
+      "status": "visited",
+      "notes": "Regular follow-up visit. Customer satisfied with products.",
+      "payment_collected": false,
+      "payment_amount": null,
+      "issues_reported": "Minor delay in last delivery",
+      "visit_duration_minutes": 30,
+      "created_at": "2024-08-23T14:00:00Z",
+      "updated_at": "2024-08-23T14:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.routevisit",
+    "pk": "550e8400-e29b-41d4-a716-446655440903",
+    "fields": {
+      "route": "550e8400-e29b-41d4-a716-446655440802",
+      "customer": 3,
+      "check_in": "2024-08-23T12:15:00Z",
+      "check_out": "2024-08-23T13:00:00Z",
+      "lat": "12.935240",
+      "lon": "77.624480",
+      "status": "visited",
+      "notes": "New order discussion. Customer expanding operations.",
+      "payment_collected": true,
+      "payment_amount": "10000.00",
+      "issues_reported": "",
+      "visit_duration_minutes": 45,
+      "created_at": "2024-08-23T12:15:00Z",
+      "updated_at": "2024-08-23T13:00:00Z"
+    }
+  },
+  {
+    "model": "transactions.routevisit",
+    "pk": "550e8400-e29b-41d4-a716-446655440904",
+    "fields": {
+      "route": "550e8400-e29b-41d4-a716-446655440802",
+      "customer": 4,
+      "check_in": null,
+      "check_out": null,
+      "lat": null,
+      "lon": null,
+      "status": "planned",
+      "notes": "",
+      "payment_collected": false,
+      "payment_amount": null,
+      "issues_reported": "",
+      "visit_duration_minutes": null,
+      "created_at": "2024-08-23T08:30:00Z",
+      "updated_at": "2024-08-23T08:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.routelocationping",
+    "pk": "550e8400-e29b-41d4-a716-446655441001",
+    "fields": {
+      "route": "550e8400-e29b-41d4-a716-446655440801",
+      "visit": "550e8400-e29b-41d4-a716-446655440901",
+      "lat": "12.845669000000000",
+      "lon": "77.663880000000000",
+      "accuracy_meters": "5.200000",
+      "speed_mps": "0.0000",
+      "heading_degrees": "45.50",
+      "created_at": "2024-08-23T10:30:00Z",
+      "updated_at": "2024-08-23T10:30:00Z"
+    }
+  },
+  {
+    "model": "transactions.routelocationping",
+    "pk": "550e8400-e29b-41d4-a716-446655441002",
+    "fields": {
+      "route": "550e8400-e29b-41d4-a716-446655440801",
+      "visit": "550e8400-e29b-41d4-a716-446655440902",
+      "lat": "12.969910000000000",
+      "lon": "77.750290000000000",
+      "accuracy_meters": "3.800000",
+      "speed_mps": "0.0000",
+      "heading_degrees": "120.25",
+      "created_at": "2024-08-23T14:00:00Z",
+      "updated_at": "2024-08-23T14:00:00Z"
+    }
+  }
+]
