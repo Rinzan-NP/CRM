@@ -262,6 +262,7 @@ const CustomerLocationMap = ({ onCustomerSelect, selectedCustomerId }) => {
           <GoogleMapsProvider>
 
           <GoogleMap
+            key={`customer-map-${selectedCustomerId}-${customers.length}`}
             center={{
               lat: Number.isFinite(parseFloat(mapCenter[0])) ? parseFloat(mapCenter[0]) : 25.2048,
               lng: Number.isFinite(parseFloat(mapCenter[1])) ? parseFloat(mapCenter[1]) : 55.2708,
@@ -311,7 +312,7 @@ const CustomerLocationMap = ({ onCustomerSelect, selectedCustomerId }) => {
             {/* Customer Markers */}
             {customers.map((customer) => (
               <Marker
-                key={customer.id}
+                key={`customer-${customer.id}-${selectedCustomerId}`}
                 position={{ lat: parseFloat(customer.lat), lng: parseFloat(customer.lon) }}
                 onClick={() => setActiveCustomer(customer)}
                 icon={{

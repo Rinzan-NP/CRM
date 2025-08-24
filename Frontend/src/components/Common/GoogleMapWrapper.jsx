@@ -1,5 +1,5 @@
 import React from 'react';
-import { useJsApiLoader, GoogleMap, Marker, Polyline, Circle, InfoWindow, Autocomplete } from '@react-google-maps/api';
+import { useJsApiLoader, GoogleMap, Marker, Polyline, Circle, InfoWindow, Autocomplete, DirectionsService, DirectionsRenderer } from '@react-google-maps/api';
 
 const defaultMapContainerStyle = { width: '100%', height: '100%' };
 
@@ -20,6 +20,6 @@ export function GoogleMapsProvider({ children, libraries = ['places'] }) {
   return children;
 }
 
-export { GoogleMap, Marker, Polyline, Circle, InfoWindow, Autocomplete, defaultMapContainerStyle };
+export { GoogleMap, Marker, Polyline, Circle, InfoWindow, Autocomplete, DirectionsService, DirectionsRenderer, defaultMapContainerStyle };
 
 

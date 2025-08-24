@@ -9,6 +9,7 @@ import Toast from '../components/Common/Toast';
 import RouteOptimizer from '../components/Dashboard/RouteOptimizer';
 import CustomerVisitLogger from '../components/Customers/CustomerVisitLogger';
 import { GoogleMapsProvider, GoogleMap, Marker, Polyline, Circle, InfoWindow, defaultMapContainerStyle } from '../components/Common/GoogleMapWrapper';
+import RoadRoutePolyline from '../components/Common/RoadRoutePolyline';
 import { useAuth } from '../hooks/useAuth';
 
 const RouteLiveTracker = () => {
@@ -694,6 +695,7 @@ const RouteLiveTracker = () => {
           <div className="h-96 w-full">
             <GoogleMapsProvider>
               <GoogleMap
+                key={`route-map-${selectedRouteId}`}
                 center={{
                   lat: Number.isFinite(parseFloat(mapData.center[0])) ? parseFloat(mapData.center[0]) : 25.2048,
                   lng: Number.isFinite(parseFloat(mapData.center[1])) ? parseFloat(mapData.center[1]) : 55.2708,
@@ -701,28 +703,35 @@ const RouteLiveTracker = () => {
                 zoom={mapData.zoom}
                 mapContainerStyle={defaultMapContainerStyle}
               >
+                {/* Road-based planned route */}
                 {showPlannedRoute && selectedRoute?.visits && selectedRoute.visits.length > 1 && (
-                  <Polyline
-                    path={selectedRoute.visits
+                  <RoadRoutePolyline
+                    waypoints={selectedRoute.visits
                       .filter(v => v.lat && v.lon && !isNaN(v.lat) && !isNaN(v.lon))
                       .map(v => ({ lat: parseFloat(v.lat), lng: parseFloat(v.lon) }))}
-                    options={{ strokeColor: 'blue', strokeOpacity: 0.7, strokeWeight: 3 }}
+                    strokeColor="blue"
+                    strokeOpacity={0.7}
+                    strokeWeight={3}
                   />
                 )}
 
+                {/* Road-based actual route */}
                 {showActualRoute && pings.length > 1 && (
-                  <Polyline
-                    path={pings
+                  <RoadRoutePolyline
+                    waypoints={pings
                       .filter(p => p.lat && p.lon && !isNaN(p.lat) && !isNaN(p.lon))
                       .map(p => ({ lat: parseFloat(p.lat), lng: parseFloat(p.lon) }))}
-                    options={{ strokeColor: 'red', strokeOpacity: 0.8, strokeWeight: 4 }}
+                    strokeColor="red"
+                    strokeOpacity={0.8}
+                    strokeWeight={4}
                   />
                 )}
 
+                {/* Planned route markers (blue) - only show when planned route is visible */}
                 {showPlannedRoute && selectedRoute?.visits && selectedRoute.visits.map((visit, index) => (
                   visit.lat && visit.lon && !isNaN(visit.lat) && !isNaN(visit.lon) ? (
                     <Marker 
-                      key={`visit-${visit.id}`} 
+                      key={`planned-visit-${selectedRouteId}-${visit.id}`} 
                       position={{ lat: parseFloat(visit.lat), lng: parseFloat(visit.lon) }}
                       icon={{
                         path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
@@ -736,10 +745,11 @@ const RouteLiveTracker = () => {
                   ) : null
                 ))}
 
+                {/* Actual route markers (red) - only show when actual route is visible */}
                 {showActualRoute && pings.map((ping, index) => (
                   ping.lat && ping.lon && !isNaN(ping.lat) && !isNaN(ping.lon) ? (
                     <Marker 
-                      key={`ping-${ping.id || index}`} 
+                      key={`actual-ping-${selectedRouteId}-${ping.id || index}`} 
                       position={{ lat: parseFloat(ping.lat), lng: parseFloat(ping.lon) }}
                       icon={{
                         path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
