@@ -16,16 +16,22 @@ class WebSocketService {
     return new Promise((resolve, reject) => {
       try {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host;
-        const wsUrl = `${protocol}//${host}/ws/route-tracking/${routeId}/?token=${token}`;
+        // Use the backend host without /api/ prefix for WebSocket connections
+        const backendHost = import.meta.env.VITE_API_URL?.replace(/^https?:\/\//, '').replace(/\/api\/?$/, '') || 'localhost:8000';
+        const wsUrl = `${protocol}//${backendHost}/ws/route-tracking/${routeId}/?token=${token}`;
+        
+        console.log('Attempting WebSocket connection to:', wsUrl);
         
         this.socket = new WebSocket(wsUrl);
         
         this.socket.onopen = () => {
-          console.log('WebSocket connected');
+          console.log('WebSocket connected successfully');
           this.isConnected = true;
           this.reconnectAttempts = 0;
           this.reconnectDelay = 1000;
+          
+          // Emit connect event
+          this.notifyListeners('connect', { routeId });
           
           resolve();
         };
@@ -43,6 +49,9 @@ class WebSocketService {
           console.log('WebSocket disconnected:', event.code, event.reason);
           this.isConnected = false;
           
+          // Emit disconnect event
+          this.notifyListeners('disconnect', { code: event.code, reason: event.reason });
+          
           // Attempt to reconnect if not a normal closure
           if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
             this.scheduleReconnect();
@@ -51,11 +60,13 @@ class WebSocketService {
         
         this.socket.onerror = (error) => {
           console.error('WebSocket error:', error);
+          this.notifyListeners('error', error);
           reject(error);
         };
         
       } catch (error) {
         console.error('Failed to create WebSocket connection:', error);
+        this.notifyListeners('error', error);
         reject(error);
       }
     });
@@ -167,6 +178,20 @@ class WebSocketService {
   setConnectionDetails(routeId, token) {
     this.currentRouteId = routeId;
     this.currentToken = token;
+  }
+
+  // Get connection status
+  getConnectionStatus() {
+    return {
+      isConnected: this.isConnected,
+      reconnectAttempts: this.reconnectAttempts,
+      maxReconnectAttempts: this.maxReconnectAttempts
+    };
+  }
+
+  // Check if WebSocket is ready
+  isReady() {
+    return this.socket && this.isConnected && this.socket.readyState === WebSocket.OPEN;
   }
 }
 
