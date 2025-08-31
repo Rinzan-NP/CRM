@@ -2,42 +2,46 @@ from rest_framework import serializers
 from .models import Customer, Product, Supplier, VATSettings
 
 class SupplierSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source="company.name", read_only=True)
+
     class Meta:
-        model  = Supplier
+        model = Supplier
         fields = [
             'id', 'name', 'email', 'phone', 'address',
             'credit_limit', 'current_balance',
-            'created_at', 'updated_at'
+            'created_at', 'updated_at', 'company_name'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
         
         
 class ProductSerializer(serializers.ModelSerializer):
     vat_rate = serializers.ReadOnlyField(source='vat_category.rate')
+    company_name = serializers.CharField(source="company.name", read_only=True)
 
     class Meta:
         model = Product
         fields = [
             'id', 'code', 'name', 'unit_price', 'unit_cost', 'vat_category', 'vat_rate',
-            'is_active', 'created_at', 'updated_at'
+            'is_active', 'created_at', 'updated_at', 'company_name'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'vat_rate']
-        
 
 class CustomerSerializer(serializers.ModelSerializer):
     has_coordinates = serializers.ReadOnlyField()
     location_display = serializers.ReadOnlyField()
-    distance_km = serializers.ReadOnlyField(required=False)  # For nearby searches
-    
+    distance_km = serializers.ReadOnlyField(required=False)
+    company_name = serializers.CharField(source="company.name", read_only=True)
+
     class Meta:
         model = Customer
         fields = [
             'id', 'name', 'email', 'phone', 'credit_limit', 'address',
             'lat', 'lon', 'city', 'state', 'country', 'postal_code',
             'location_verified', 'has_coordinates', 'location_display',
-            'distance_km', 'current_balance', 'created_at', 'updated_at'
+            'distance_km', 'current_balance', 'created_at', 'updated_at', 'company_name'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
     
     def validate_lat(self, value):
         """Validate latitude"""
@@ -87,7 +91,9 @@ class CustomerSerializer(serializers.ModelSerializer):
         
 
 class VATSettingsSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source="company.name", read_only=True)
+
     class Meta:
         model = VATSettings
-        fields = ['id', 'category', 'rate']
+        fields = ['id', 'category', 'rate', 'company_name']
         read_only_fields = ['id']

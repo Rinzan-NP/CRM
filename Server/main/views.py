@@ -13,6 +13,9 @@ class CustomerViewSet(viewsets.ModelViewSet):
     serializer_class = CustomerSerializer
     permission_classes = [IsAuthenticated]
     
+    def get_queryset(self):
+        return self.queryset.filter(company=self.request.user.company)
+
     def create(self, request, *args, **kwargs):
         """Override create method to add debug logging"""
         print(f"DEBUG: Creating customer with data: {request.data}")
@@ -184,17 +187,23 @@ class SupplierViewSet(viewsets.ModelViewSet):
     serializer_class = SupplierSerializer
     permission_classes = [IsAuthenticated]
     
+    def get_queryset(self):
+        return Supplier.objects.filter(company=self.request.user.company)
+
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset         = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
-    
+
+    def get_queryset(self):
+        return Product.objects.filter(company=self.request.user.company)
+
 
 class VATSettingsViewSet(viewsets.ModelViewSet):
     queryset = VATSettings.objects.all()
     serializer_class = VATSettingsSerializer
     permission_classes = [IsAuthenticated]   
     
-
-
+    def get_queryset(self):
+        return VATSettings.objects.filter(company=self.request.user.company)
