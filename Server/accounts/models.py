@@ -11,6 +11,8 @@ class Company(models.Model):
 
     def __str__(self):
         return self.name
+    
+    
 class User(AbstractUser):
     ROLE_CHOICES = (
         ('admin', 'Admin'),
