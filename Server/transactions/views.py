@@ -3,37 +3,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Sum, Count
 from .models import SalesOrder, PurchaseOrder
-
-# Sales Order Report API
-class SalesOrderReportView(APIView):
-    permission_classes = [IsAuthenticated]
-    def get(self, request):
-        start = request.GET.get('start')
-        end = request.GET.get('end')
-        qs = SalesOrder.objects.all()
-        if start and end:
-            qs = qs.filter(order_date__gte=start, order_date__lte=end)
-        data = qs.aggregate(
-            total_sales=Sum('grand_total'),
-            total_profit=Sum('profit'),
-            order_count=Count('id')
-        )
-        return Response(data)
-
-# Purchase Order Report API
-class PurchaseOrderReportView(APIView):
-    permission_classes = [IsAuthenticated]
-    def get(self, request):
-        start = request.GET.get('start')
-        end = request.GET.get('end')
-        qs = PurchaseOrder.objects.all()
-        if start and end:
-            qs = qs.filter(order_date__gte=start, order_date__lte=end)
-        data = qs.aggregate(
-            total_purchases=Sum('grand_total'),
-            order_count=Count('id')
-        )
-        return Response(data)
+    
 from collections import defaultdict
 from decimal import Decimal
 from django.db.models import DecimalField
@@ -56,13 +26,45 @@ from .serializers import (
     RouteLocationPingSerializer, CustomerSerializer
 )
 
+
+# Sales Order Report API
+class SalesOrderReportView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        start = request.GET.get('start')
+        end = request.GET.get('end')
+        qs = SalesOrder.objects.filter(company = request.user.company)
+        if start and end:
+            qs = qs.filter(order_date__gte=start, order_date__lte=end)
+        data = qs.aggregate(
+            total_sales=Sum('grand_total'),
+            total_profit=Sum('profit'),
+            order_count=Count('id')
+        )
+        return Response(data)
+
+# Purchase Order Report API
+class PurchaseOrderReportView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        start = request.GET.get('start')
+        end = request.GET.get('end')
+        qs = PurchaseOrder.objects.filter(company = request.user.company)
+        if start and end:
+            qs = qs.filter(order_date__gte=start, order_date__lte=end)
+        data = qs.aggregate(
+            total_purchases=Sum('grand_total'),
+            order_count=Count('id')
+        )
+        return Response(data)
+    
 class SalesOrderViewSet(viewsets.ModelViewSet):
     queryset = SalesOrder.objects.all()
     serializer_class = SalesOrderSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().filter(company = request.user.company)
         user = self.request.user
         role = getattr(user, 'role', '')
         if role == 'salesperson':
@@ -74,6 +76,10 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         # Ensure the request context is passed to the serializer
         kwargs['context'] = self.get_serializer_context()
         return self.serializer_class(*args, **kwargs)
+    
+    def create(self, request, *args, **kwargs):
+        request['company'] = request.user.company
+        return super().create(request, *args, **kwargs)
 
     @action(detail=True, methods=["get"])
     def profit(self, request, pk=None):
@@ -114,7 +120,8 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         order_data = request.data.copy()
         order_data['customer'] = customer_id
         order_data['order_date'] = order_data.get('order_date', timezone.now().date())
-        
+        order_data['company'] = request.user.company
+
         serializer = self.get_serializer(data=order_data)
         if serializer.is_valid():
             order = serializer.save()
@@ -135,11 +142,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     def has_write_access(self):
         role = getattr(self.request.user, 'role', )
-        return role in ('admin', 'accountant', 'salesperson')
+        return role in ('admin', 'accountant')
 
     def create(self, request, *args, **kwargs):
         if not self.has_write_access():
             return Response({'detail': 'Forbidden'}, status=403)
+        request['company'] = request.user.company
         return super().create(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
@@ -164,7 +172,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().filter(company = self.request.user.company)
         user = self.request.user
         role = getattr(user, 'role', '')
         if role == 'salesperson':
@@ -179,6 +187,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         if not self.has_write_access():
             return Response({'detail': 'Forbidden'}, status=403)
+        request['company'] = request.user.company
         return super().create(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
@@ -232,7 +241,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().filter(company = self.request.user.company)
         user = self.request.user
         role = getattr(user, 'role', '')
         if role == 'salesperson':
@@ -248,6 +257,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Forbidden'}, status=403)
         
         try:
+            request['company'] = request.user.company
             response = super().create(request, *args, **kwargs)
             
             # Refresh the invoice data to get updated outstanding amount
@@ -283,7 +293,7 @@ class RouteViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().filter(company=self.request.user.company)
         user = self.request.user
         role = getattr(user, 'role', '')
         if role == 'salesperson':
@@ -304,7 +314,7 @@ class RouteVisitViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().filter(company=self.request.user.company)
         user = self.request.user
         role = getattr(user, 'role', '')
         
@@ -509,7 +519,7 @@ class RouteLocationPingViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().filter(company=self.request.user.company)
         user = self.request.user
         role = getattr(user, 'role', '')
         # Salespeople can only view their own route pings
@@ -564,7 +574,7 @@ class RouteLocationPingViewSet(viewsets.ModelViewSet):
             except Route.DoesNotExist:
                 print(f"Route not found: {route_id}")
                 return Response({'detail': 'Route not found'}, status=404)
-            
+            request['company'] = user.company
             response = super().create(request, *args, **kwargs)
             print(f"Successfully created ping: {response.data}")
             return response
@@ -1121,7 +1131,8 @@ class VATReportView(APIView):
             .select_related('product__vat_category', 'sales_order')
             .filter(
                 sales_order__invoice__issue_date__gte=start,
-                sales_order__invoice__issue_date__lte=end
+                sales_order__invoice__issue_date__lte=end,
+                sales_order__company=request.user.company
             )
             .annotate(
                 vat_rate=F('product__vat_category__rate'),
@@ -1195,7 +1206,7 @@ class SalesVsPurchaseReportView(APIView):
         
         # Sales data
         sales_data = SalesOrder.objects.filter(
-            order_date__gte=start, order_date__lte=end
+            order_date__gte=start, order_date__lte=end,company=request.user.company
         ).aggregate(
             total_sales=Sum('grand_total'),
             total_profit=Sum('profit'),
@@ -1204,7 +1215,7 @@ class SalesVsPurchaseReportView(APIView):
         
         # Purchase data  
         purchase_data = PurchaseOrder.objects.filter(
-            order_date__gte=start, order_date__lte=end
+            order_date__gte=start, order_date__lte=end, company=request.user.company
         ).aggregate(
             total_purchases=Sum('grand_total'),
             order_count=Count('id')
@@ -1230,7 +1241,7 @@ class RouteEfficiencyReportView(APIView):
         start = parse_date(request.GET.get("start", ""))
         end = parse_date(request.GET.get("end", ""))
         
-        routes = Route.objects.filter(date__gte=start, date__lte=end)
+        routes = Route.objects.filter(date__gte=start, date__lte=end, company=request.user.company)
         
         report_data = []
         for route in routes:
@@ -1257,8 +1268,8 @@ class OutstandingPaymentsView(APIView):
     
     def get(self, request):
         # Get all invoices that have outstanding amounts
-        invoices = Invoice.objects.select_related('sales_order__customer').all()
-        
+        invoices = Invoice.objects.select_related('sales_order__customer').filter(company=request.user.company)
+
         customer_outstanding = {}
         for invoice in invoices:
             outstanding = invoice.outstanding
@@ -1300,11 +1311,14 @@ class CustomerViewSet(viewsets.ModelViewSet):
         
         return qs
 
-# Update the existing CustomerDetailView
+
 class CustomerDetailView(generics.RetrieveAPIView):
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
     permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return super().get_queryset().filter(company=self.request.user.company)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -1318,7 +1332,7 @@ class CustomerSalesOrdersView(generics.ListAPIView):
 
     def get_queryset(self):
         customer_id = self.kwargs['customer_id']
-        qs = SalesOrder.objects.filter(customer_id=customer_id)
+        qs = SalesOrder.objects.filter(customer_id=customer_id, company=self.request.user.company)
         
         # Apply role-based filtering
         user = self.request.user
@@ -1335,7 +1349,7 @@ class CustomerInvoicesView(generics.ListAPIView):
 
     def get_queryset(self):
         customer_id = self.kwargs['customer_id']
-        qs = Invoice.objects.filter(sales_order__customer_id=customer_id)
+        qs = Invoice.objects.filter(sales_order__customer_id=customer_id, company=self.request.user.company)
         
         # Apply role-based filtering
         user = self.request.user

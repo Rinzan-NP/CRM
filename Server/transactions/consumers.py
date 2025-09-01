@@ -121,7 +121,8 @@ class RouteTrackingConsumer(AsyncWebsocketConsumer):
                 lon=data.get('lon'),
                 accuracy_meters=data.get('accuracy_meters'),
                 speed_mps=data.get('speed_mps'),
-                heading_degrees=data.get('heading_degrees')
+                heading_degrees=data.get('heading_degrees'),
+                company=self.user.company
             )
             
             return {
