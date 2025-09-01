@@ -67,7 +67,8 @@ def log_delete(sender, instance, **kwargs):
                 action='DELETE',
                 model_name=sender._meta.model_name,
                 object_id=str(instance.pk),
-                changes={}
+                changes={},
+                company=user.company
             )
             print(f"✅ Delete audit log created successfully: {audit_log.id}")
         except Exception as e:
