@@ -17,7 +17,7 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [IsAdminUser]
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
-    
+
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]
@@ -26,7 +26,7 @@ class LoginView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        email    = serializer.validated_data["email"]
+        email = serializer.validated_data["email"]
         password = serializer.validated_data["password"]
 
         user = authenticate(request, username=email, password=password)
@@ -38,25 +38,29 @@ class LoginView(generics.GenericAPIView):
         refresh = RefreshToken.for_user(user)
         return Response({
             "refresh": str(refresh),
-            "access" : str(refresh.access_token),
-            "user"   : {
+            "access": str(refresh.access_token),
+            "user": {
                 "email": user.email,
-                "role": user.role
+                "role": user.role,
+                "company": user.company.name
             }
         })
 
-
 class SalesPersonListView(generics.ListAPIView):
-    queryset = User.objects.filter(role__in=['salesperson', 'admin'])
     serializer_class = SalesPersonSerializer
     permission_classes = [IsAuthenticated]
-    
+
+    def get_queryset(self):
+        user = self.request.user
+        return User.objects.filter(role__in=['salesperson'], company=user.company)
 
 class UserListView(generics.ListAPIView):
-    queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
-    
+
+    def get_queryset(self):
+        user = self.request.user
+        return User.objects.filter(company=user.company)
 
 class UserBlockAndUnblock(APIView):
     permission_classes = [IsAuthenticated]
@@ -64,10 +68,9 @@ class UserBlockAndUnblock(APIView):
     def post(self, request, *args, **kwargs):
         user_id = request.data.get("user_id")
         action = request.data.get("action")
-        print(request.data)
 
         try:
-            user = User.objects.get(id=user_id)
+            user = User.objects.get(id=user_id, company=request.user.company)
         except User.DoesNotExist:
             return Response({"detail": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 

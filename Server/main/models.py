@@ -1,6 +1,7 @@
 from django.db import models
 from decimal import Decimal
 import uuid
+from accounts.models import Company
 
 from django.forms import ValidationError
 
@@ -18,6 +19,7 @@ class Customer(models.Model):
     phone = models.CharField(max_length=20, blank=True, null=True)
     credit_limit = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     address = models.TextField(blank=True, null=True)
+    company = models.ForeignKey(Company, on_delete=models.SET_NULL, blank=True, null=True)
     # Enhanced location fields
     lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, help_text="Latitude coordinate")
     lon = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, help_text="Longitude coordinate")
@@ -93,6 +95,7 @@ class Supplier(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     current_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    company = models.ForeignKey(Company, on_delete=models.SET_NULL, blank=True, null=True)
 
     def __str__(self):
         return self.name
@@ -105,6 +108,7 @@ class Supplier(models.Model):
 class VATSettings(models.Model):
     category = models.CharField(max_length=100, unique=True)
     rate = models.DecimalField(max_digits=5, decimal_places=2)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE)
 
     def __str__(self):
         return f"{self.category} - {self.rate}%"
@@ -120,6 +124,7 @@ class VATSettings(models.Model):
 class Product(BaseModel):
     code = models.CharField(max_length=100, unique=True)
     name = models.CharField(max_length=255)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     vat_category = models.ForeignKey(

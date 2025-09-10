@@ -4,6 +4,7 @@ from django.db import models
 from django.db import models
 from django.contrib.auth import get_user_model
 import uuid
+from accounts.models import Company
 
 User = get_user_model()
 
@@ -15,6 +16,7 @@ class AuditLog(models.Model):
     object_id = models.CharField(max_length=50)       # UUID or PK
     timestamp = models.DateTimeField(auto_now_add=True)
     changes = models.JSONField(default=dict, blank=True)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE,null=True, blank=True)
 
     class Meta:
         ordering = ["-timestamp"]

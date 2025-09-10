@@ -21,14 +21,16 @@ class OrderLineItemSerializer(serializers.ModelSerializer):
 class SalesOrderSerializer(serializers.ModelSerializer):
     line_items = OrderLineItemSerializer(many=True, read_only=False)
     salesperson = serializers.SerializerMethodField()  # Get from route visit context
+    company_name = serializers.CharField(source="company.name", read_only=True)
+
 
     class Meta:
         model = SalesOrder
         fields = [
             'id', 'order_number', 'customer', 'salesperson', 'order_date', 'status',
-            'subtotal', 'vat_total', 'grand_total', 'profit', 'prices_include_vat', 'line_items'
+            'subtotal', 'vat_total', 'grand_total', 'profit', 'prices_include_vat', 'line_items', 'company_name'
         ]
-        read_only_fields = ['subtotal', 'vat_total', 'grand_total', 'profit', 'salesperson', 'order_number']
+        read_only_fields = ['subtotal', 'vat_total', 'grand_total', 'profit', 'salesperson', 'order_number', 'company_name']
 
     def get_salesperson(self, obj):
         """Get salesperson from route visit context"""
@@ -106,14 +108,16 @@ class PurchaseOrderLineItemSerializer(serializers.ModelSerializer):
 
 class PurchaseOrderSerializer(serializers.ModelSerializer):
     line_items = PurchaseOrderLineItemSerializer(many=True, read_only=False)
+    company_name = serializers.CharField(source="company.name", read_only=True)
+
 
     class Meta:
         model = PurchaseOrder
         fields = [
             'id', 'order_number', 'supplier', 'order_date', 'status',
-            'subtotal', 'vat_total', 'grand_total', 'prices_include_vat', 'line_items'
+            'subtotal', 'vat_total', 'grand_total', 'prices_include_vat', 'line_items', 'company_name'
         ]
-        read_only_fields = ['subtotal', 'vat_total', 'grand_total', 'order_number']
+        read_only_fields = ['subtotal', 'vat_total', 'grand_total', 'order_number', 'company_name']
 
     def create(self, validated_data):
         line_data = validated_data.pop('line_items', [])
@@ -127,11 +131,12 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
     
 
 class PaymentSerializer(serializers.ModelSerializer):
-    
+    company_name = serializers.CharField(source="company.name", read_only=True)
 
     class Meta:
         model = Payment
-        fields = ['id', 'invoice', 'amount', 'paid_on', 'mode', ]
+        fields = ['id', 'invoice', 'amount', 'paid_on', 'mode', 'company_name']
+        read_only_fields = ['id', 'invoice', 'paid_on', 'company_name']
 
     
 
@@ -139,15 +144,16 @@ class InvoiceSerializer(serializers.ModelSerializer):
     payments = PaymentSerializer(many=True, read_only=True)
     outstanding = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     customer_name = serializers.SerializerMethodField(read_only=True)
+    company_name = serializers.CharField(source="company.name", read_only=True)
     
     class Meta:
         model = Invoice
         fields = [
             'id', 'sales_order', 'invoice_no', 'issue_date', 'due_date',
-            'amount_due', 'paid_amount', 'outstanding', 'status', 'payments', 'customer_name'
+            'amount_due', 'paid_amount', 'outstanding', 'status', 'payments', 'customer_name', 'company_name'
         ]
-        read_only_fields = ['paid_amount', 'status', 'invoice_no']
-        
+        read_only_fields = ['paid_amount', 'status', 'invoice_no', 'company_name']
+
     def get_customer_name(self, obj):
         # Get customer name from related sales order
         sales_order = getattr(obj, 'sales_order', None)
@@ -174,6 +180,7 @@ class RouteVisitSerializer(serializers.ModelSerializer):
     sales_orders_details = serializers.SerializerMethodField(read_only=True)
     customer_name = serializers.SerializerMethodField(read_only=True)
     route_name = serializers.SerializerMethodField(read_only=True)
+    company_name = serializers.CharField(source="company.name", read_only=True)
 
     class Meta:
         model = RouteVisit
@@ -181,9 +188,9 @@ class RouteVisitSerializer(serializers.ModelSerializer):
             'id', 'route', 'customer', 'check_in', 'check_out', 'lat', 'lon', 
             'status', 'sales_orders', 'notes', 'sales_orders_details', 
             'customer_name', 'route_name', 'payment_collected', 'payment_amount', 
-            'issues_reported', 'visit_duration_minutes'
+            'issues_reported', 'visit_duration_minutes', 'company_name'
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'company_name']
 
     def get_sales_orders_details(self, obj):
         """Get detailed info about associated sales orders"""
@@ -244,14 +251,15 @@ class RouteVisitSerializer(serializers.ModelSerializer):
 class RouteSerializer(serializers.ModelSerializer):
     visits = RouteVisitSerializer(many=True, read_only=True)
     salesperson_name = serializers.CharField(source='salesperson.email', read_only=True)
-    
+    company_name = serializers.CharField(source='company.name', read_only=True)
+
     class Meta:
         model = Route
         fields = [
             'id', 'route_number', 'salesperson', 'name', 'date',
-            'start_time', 'end_time', 'visits', 'salesperson_name'
+            'start_time', 'end_time', 'visits', 'salesperson_name', 'company_name'
         ]
-        read_only_fields = ['id', 'route_number', 'salesperson_name']
+        read_only_fields = ['id', 'route_number', 'salesperson_name', 'company_name']
 
     def get_fields(self):
         fields = super().get_fields()
@@ -278,6 +286,8 @@ class RouteLocationPingSerializer(serializers.ModelSerializer):
     
     speed_mps = serializers.DecimalField(max_digits=8, decimal_places=4, required=False, allow_null=True)
     heading_degrees = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
+
+    company_name = serializers.CharField(source="company.name", read_only=True)
 
     class Meta:
         model = RouteLocationPing
@@ -318,7 +328,6 @@ class RouteLocationPingSerializer(serializers.ModelSerializer):
         return data
 
 
-# serializers.py
 class CustomerSerializer(serializers.ModelSerializer):
     order_count = serializers.SerializerMethodField()
     total_spent = serializers.SerializerMethodField()

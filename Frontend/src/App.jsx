@@ -9,15 +9,21 @@ import MainRouter from './router/MainRouter';
 import LoginPage from './pages/Login';
 
 function App() {
-  // const dispatch = useDispatch();
-  // const auth = useSelector((state) => state.auth);
-
- 
-
-  // const handleLogout = () => {
-  //   dispatch(logout());
-  //   localStorage.removeItem('token');
-  // };
+  // Clean up any invalid tokens on app start
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const refresh = localStorage.getItem('refresh');
+    
+    // If we have tokens but they're invalid (causing 401s), clear them
+    if (token && refresh) {
+      // Check if we're on login page - if so, clear tokens to prevent refresh loops
+      if (window.location.pathname === '/login') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refresh');
+        localStorage.removeItem('user');
+      }
+    }
+  }, []);
 
   return (
     <Provider store={store}>
