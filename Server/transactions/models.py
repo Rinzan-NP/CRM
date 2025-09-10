@@ -5,7 +5,7 @@ from django.db import models
 # transactions/models.py
 from django.db import models
 from django.conf import settings
-from main.models import BaseModel, Customer, Product, VATSettings
+from main.models import BaseModel, Customer, Product, VATSettings,Company
 
 
 class SalesOrder(BaseModel):
@@ -20,7 +20,7 @@ class SalesOrder(BaseModel):
     customer = models.ForeignKey(
         Customer, on_delete=models.CASCADE, related_name="sales_orders"
     )
-    
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='sales_orders')
     order_date = models.DateField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
@@ -124,6 +124,7 @@ class PurchaseOrder(BaseModel):
     supplier = models.ForeignKey(
         "main.Supplier", on_delete=models.CASCADE, related_name="purchase_orders"
     )
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='purchase_orders')
     order_date = models.DateField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
@@ -215,7 +216,7 @@ class Invoice(BaseModel):
     amount_due  = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)  # = SO.grand_total
     paid_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     status      = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
-
+    company     = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='invoices')
     class Meta:
         indexes = [
             models.Index(fields=["invoice_no"]),
@@ -282,6 +283,7 @@ class Payment(BaseModel):
     amount  = models.DecimalField(max_digits=12, decimal_places=2)
     paid_on = models.DateField()
     mode    = models.CharField(max_length=30, choices=[("cash", "Cash"), ("bank", "Bank")])
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='payments')
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
@@ -314,6 +316,7 @@ class Route(BaseModel):
     date        = models.DateField()
     start_time  = models.TimeField(null=True, blank=True)
     end_time    = models.TimeField(null=True, blank=True)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='routes')
 
     class Meta:
         indexes = [
@@ -357,7 +360,7 @@ class RouteVisit(BaseModel):
     payment_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     issues_reported = models.TextField(blank=True)
     visit_duration_minutes = models.IntegerField(null=True, blank=True)
-
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='route_visits')
 
 class RouteLocationPing(BaseModel):
     """Live GPS pings during a route visit"""
@@ -368,6 +371,7 @@ class RouteLocationPing(BaseModel):
     accuracy_meters = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
     speed_mps = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)  # Increased precision for speed
     heading_degrees = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='route_location_pings')
 
     class Meta:
         indexes = [

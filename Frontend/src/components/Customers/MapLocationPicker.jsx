@@ -25,6 +25,15 @@ const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
   const [zoom, setZoom] = useState(12);
   const autocompleteRef = useRef(null);
 
+  // Reset selected location when currentLocation changes
+  useEffect(() => {
+    const newNormalized = normalizeLatLng(currentLocation);
+    if (newNormalized) {
+      setSelectedLocation(newNormalized);
+      setCenter(newNormalized);
+    }
+  }, [currentLocation]);
+
   const handleConfirmLocation = () => {
     if (selectedLocation) {
       const lat = parseFloat(selectedLocation.lat.toFixed(6));
@@ -116,6 +125,7 @@ const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
               </Autocomplete>
             </div>
             <GoogleMap
+              key={`location-picker-${selectedLocation?.lat}-${selectedLocation?.lng}`}
               center={center}
               zoom={zoom}
               mapContainerStyle={defaultMapContainerStyle}

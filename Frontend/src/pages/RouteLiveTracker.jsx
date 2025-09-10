@@ -1,12 +1,15 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { FiActivity, FiMapPin, FiNavigation, FiTrendingUp, FiClock, FiZap, FiAlertCircle, FiEye } from 'react-icons/fi';
+import RouteAnalyticsSummary from '../components/Dashboard/RouteAnalyticsSummary';
 import api from '../services/api';
+import websocketService from '../services/websocket';
 import PageHeader from '../components/layout/PageHeader';
 import Loader from '../components/Common/Loader';
 import Toast from '../components/Common/Toast';
 import RouteOptimizer from '../components/Dashboard/RouteOptimizer';
 import CustomerVisitLogger from '../components/Customers/CustomerVisitLogger';
 import { GoogleMapsProvider, GoogleMap, Marker, Polyline, Circle, InfoWindow, defaultMapContainerStyle } from '../components/Common/GoogleMapWrapper';
+import RoadRoutePolyline from '../components/Common/RoadRoutePolyline';
 import { useAuth } from '../hooks/useAuth';
 
 const RouteLiveTracker = () => {
@@ -26,6 +29,7 @@ const RouteLiveTracker = () => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [lastConfirmedLocation, setLastConfirmedLocation] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [websocketConnected, setWebsocketConnected] = useState(false);
   const { user, isAuthenticated } = useAuth();
   const userRole = user?.role || '';
   const watchIdRef = useRef(null);
@@ -33,7 +37,6 @@ const RouteLiveTracker = () => {
   const mapRef = useRef(null);
 
   // Get user role from API or context
-
 
   // Improved distance calculation using Haversine formula
   const calculateDistance = useCallback((lat1, lon1, lat2, lon2) => {
@@ -51,7 +54,7 @@ const RouteLiveTracker = () => {
     return R * c; // Distance in meters
   }, []);
 
-  // Smart movement detection based on GPS accuracy
+  // Smart movement detection based on GPS accuracy - IMPROVED VERSION
   const hasMovedSignificantly = useCallback((lastLocation, newLocation, accuracy) => {
     if (!lastLocation) return true;
     
@@ -60,21 +63,28 @@ const RouteLiveTracker = () => {
       newLocation.lat, newLocation.lon
     );
     
-    // Dynamic threshold based on GPS accuracy
-    const accuracyMeters = accuracy || 25; // Default to 25m if no accuracy provided
+    // IMPROVED: More conservative thresholds to reduce false positives
+    const accuracyMeters = accuracy || 30; // Default to 30m if no accuracy provided
     const movementThreshold = Math.max(
-      20,                          // Minimum 20 meters to avoid GPS noise
-      accuracyMeters * 2          // 2x the GPS accuracy for reliable detection
+      50,                          // Minimum 50 meters to avoid GPS noise (increased from 20m)
+      accuracyMeters * 3          // 3x the GPS accuracy for reliable detection (increased from 2x)
     );
+    
+    // Additional check: if accuracy is poor, require even more movement
+    if (accuracyMeters > 30) {
+      const poorAccuracyThreshold = Math.max(movementThreshold, 100); // At least 100m for poor accuracy
+      console.log(`Poor accuracy detected: ${accuracyMeters}m, requiring ${poorAccuracyThreshold}m movement`);
+      return distance > poorAccuracyThreshold;
+    }
     
     console.log(`Distance: ${distance.toFixed(2)}m, Threshold: ${movementThreshold.toFixed(2)}m, Accuracy: ${accuracyMeters}m`);
     
     return distance > movementThreshold;
   }, [calculateDistance]);
 
-  // Check if GPS reading is accurate enough
+  // Check if GPS reading is accurate enough - IMPROVED VERSION
   const isAccurateEnough = useCallback((accuracy) => {
-    const maxAccuracy = 50; // Reject readings worse than 50m accuracy
+    const maxAccuracy = 30; // Reject readings worse than 30m accuracy (reduced from 50m)
     return !accuracy || accuracy <= maxAccuracy;
   }, []);
 
@@ -176,7 +186,7 @@ const RouteLiveTracker = () => {
       monitoringIntervalRef.current = setInterval(() => {
         fetchRoutePings();
         fetchRouteSummary();
-      }, 30000); // Poll every 30 seconds
+      }, 120000); // Poll every 2 minutes (increased from 30 seconds)
       
     } catch (e) {
       console.error('Failed to start monitoring:', e);
@@ -253,23 +263,57 @@ const RouteLiveTracker = () => {
         setLastConfirmedLocation(newLocation);
         
         try {
-          const response = await api.post('/transactions/route-location-pings/', payload);
-          const distance = lastConfirmedLocation ? 
-            calculateDistance(lastConfirmedLocation.lat, lastConfirmedLocation.lon, newLocation.lat, newLocation.lon) : 0;
-          setInfo(`GPS ping sent - moved ${distance.toFixed(1)}m (accuracy: ${accuracy?.toFixed(1)}m)`);
-          
-          // Update pings state for real-time display
-          setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
-          
-          // Fetch updated summary
-          fetchRouteSummary();
+          // Use WebSocket for real-time updates if connected, otherwise fallback to API
+          if (websocketConnected) {
+            websocketService.sendLocationUpdate(payload);
+            const distance = lastConfirmedLocation ? 
+              calculateDistance(lastConfirmedLocation.lat, lastConfirmedLocation.lon, newLocation.lat, newLocation.lon) : 0;
+            
+            // Only show notification for significant movements (more than 50m)
+            if (distance > 50) {
+              setInfo(`GPS ping sent via WebSocket - moved ${distance.toFixed(1)}m (accuracy: ${accuracy?.toFixed(1)}m)`);
+            } else {
+              setInfo(`GPS ping sent via WebSocket - accuracy: ${accuracy?.toFixed(1)}m`);
+            }
+            
+            // Update pings state for real-time display
+            setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
+            
+            // Fetch updated summary less frequently
+            if (distance > 100) { // Only update summary for significant movements
+              fetchRouteSummary();
+            }
+          } else {
+            // Fallback to API call if WebSocket is not connected
+            const response = await api.post('/transactions/route-location-pings/', payload);
+            const distance = lastConfirmedLocation ? 
+              calculateDistance(lastConfirmedLocation.lat, lastConfirmedLocation.lon, newLocation.lat, newLocation.lon) : 0;
+            
+            // Only show notification for significant movements (more than 50m)
+            if (distance > 50) {
+              setInfo(`GPS ping sent via API - moved ${distance.toFixed(1)}m (accuracy: ${accuracy?.toFixed(1)}m)`);
+            } else {
+              setInfo(`GPS ping sent via API - accuracy: ${accuracy?.toFixed(1)}m`);
+            }
+            
+            // Update pings state for real-time display
+            setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
+            
+            // Fetch updated summary less frequently
+            if (distance > 100) { // Only update summary for significant movements
+              fetchRouteSummary();
+            }
+          }
         } catch (e) {
           console.error('Failed to send location:', e);
           const errorMsg = e?.response?.data?.detail || e?.response?.data || 'Failed to send location';
           setError(errorMsg);
         }
       } else {
-        setInfo(`Stationary - accuracy: ${accuracy?.toFixed(1)}m`);
+        // Only show stationary message if accuracy is good
+        if (accuracy && accuracy <= 20) {
+          setInfo(`Stationary - accuracy: ${accuracy?.toFixed(1)}m`);
+        }
       }
     }, (err) => {
       setIsTracking(false);
@@ -294,7 +338,7 @@ const RouteLiveTracker = () => {
     });
     
     watchIdRef.current = id;
-  }, [selectedRouteId, fetchRouteSummary, lastConfirmedLocation, hasMovedSignificantly, isAccurateEnough, calculateDistance, error]);
+  }, [selectedRouteId, fetchRouteSummary, lastConfirmedLocation, hasMovedSignificantly, isAccurateEnough, calculateDistance, error, websocketConnected]);
 
   // Stop tracking/monitoring
   const stopTracking = useCallback(async () => {
@@ -345,20 +389,88 @@ const RouteLiveTracker = () => {
       // Reset location states when switching routes
       setLastConfirmedLocation(null);
       setCurrentLocation(null);
+      
+      // Connect to WebSocket for real-time updates
+      connectWebSocket();
     } else {
       setPings([]);
       setRouteSummary(null);
       setOptimizationMetrics(null);
+      // Disconnect WebSocket when no route is selected
+      websocketService.disconnect();
+      setWebsocketConnected(false);
     }
   }, [selectedRouteId, fetchRoutePings, fetchRouteSummary]);
 
-  // Set up polling for real-time updates
+  // WebSocket connection function
+  const connectWebSocket = useCallback(async () => {
+    if (!selectedRouteId || !isAuthenticated) {
+      console.log('Cannot connect WebSocket: missing routeId or not authenticated');
+      console.log('selectedRouteId:', selectedRouteId);
+      console.log('isAuthenticated:', isAuthenticated);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No token available for WebSocket connection');
+        setError('Authentication required for real-time tracking');
+        return;
+      }
+
+      console.log('Attempting WebSocket connection with routeId:', selectedRouteId);
+      
+      websocketService.setConnectionDetails(selectedRouteId, token);
+      
+      websocketService.addListener('location_update', (data) => {
+        setPings(prev => [...prev, data]);
+        setCurrentLocation(data);
+      });
+
+      websocketService.addListener('error', (error) => {
+        console.error('WebSocket error received:', error);
+        setError(`WebSocket error: ${error}`);
+      });
+      
+      websocketService.addListener('connect', (data) => {
+        console.log('WebSocket connect event received:', data);
+        setWebsocketConnected(true);
+        setInfo('Real-time tracking connected');
+      });
+
+      websocketService.addListener('disconnect', (data) => {
+        console.log('WebSocket disconnect event received:', data);
+        setWebsocketConnected(false);
+        setInfo('Real-time tracking disconnected');
+      });
+
+      await websocketService.connect(selectedRouteId, token);
+      console.log('WebSocket connection successful');
+      setWebsocketConnected(true);
+      setInfo('Real-time tracking connected');
+      
+    } catch (error) {
+      console.error('Failed to connect WebSocket:', error);
+      setError('Failed to connect real-time tracking: ' + error.message);
+      setWebsocketConnected(false);
+    }
+  }, [selectedRouteId, isAuthenticated]);
+
+  // Cleanup WebSocket on component unmount
+  useEffect(() => {
+    return () => {
+      websocketService.disconnect();
+    };
+  }, []);
+
+  // Set up polling for real-time updates - REDUCED FREQUENCY
   useEffect(() => {
     if ((isTracking || isMonitoring) && selectedRouteId) {
       const interval = setInterval(() => {
         fetchRoutePings();
         fetchRouteSummary();
-      }, 300000); // Poll every 5 minutes
+      }, 600000); // Poll every 10 minutes (increased from 5 minutes)
       
       return () => clearInterval(interval);
     }
@@ -414,18 +526,19 @@ const RouteLiveTracker = () => {
     return { center, zoom };
   }, [selectedRoute, pings]);
 
-  // Manual ping function (only for salesperson)
-  const sendManualPing = useCallback(async () => {
-    if (!navigator.geolocation || !selectedRouteId || userRole === 'admin') {
+  // Manual GPS ping function - IMPROVED VERSION
+  const sendManualPing = useCallback(() => {
+    if (!selectedRouteId || userRole === 'admin') {
       setError('Manual ping not available for admin users');
       return;
     }
 
     navigator.geolocation.getCurrentPosition(async (position) => {
       const accuracy = position.coords.accuracy;
-      
+
+      // Filter out inaccurate readings
       if (!isAccurateEnough(accuracy)) {
-        setError(`Cannot send manual ping - GPS accuracy too poor: ${accuracy?.toFixed(1)}m`);
+        setError(`Manual ping failed - poor GPS accuracy: ${accuracy?.toFixed(1)}m`);
         return;
       }
 
@@ -439,11 +552,19 @@ const RouteLiveTracker = () => {
       };
       
       try {
-        await api.post('/transactions/route-location-pings/', payload);
-        setInfo(`Manual GPS ping sent (accuracy: ${accuracy?.toFixed(1)}m)`);
-        setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
-        setLastConfirmedLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
-        fetchRouteSummary();
+        // Use WebSocket if connected, otherwise fallback to API
+        if (websocketConnected) {
+          websocketService.sendLocationUpdate(payload);
+          setInfo(`Manual GPS ping sent via WebSocket (accuracy: ${accuracy?.toFixed(1)}m)`);
+          setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
+          setLastConfirmedLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
+        } else {
+          await api.post('/transactions/route-location-pings/', payload);
+          setInfo(`Manual GPS ping sent via API (accuracy: ${accuracy?.toFixed(1)}m)`);
+          setPings(prev => [...prev, { ...payload, created_at: new Date().toISOString() }]);
+          setLastConfirmedLocation({ lat: position.coords.latitude, lon: position.coords.longitude });
+          fetchRouteSummary();
+        }
       } catch (e) {
         console.error('Failed to send manual ping:', e);
         setError('Failed to send manual ping: ' + (e.response?.data?.detail || e.message));
@@ -455,7 +576,7 @@ const RouteLiveTracker = () => {
       timeout: 10000,
       maximumAge: 30000
     });
-  }, [selectedRouteId, isAccurateEnough, fetchRouteSummary, userRole]);
+  }, [selectedRouteId, isAccurateEnough, fetchRouteSummary, userRole, websocketConnected]);
 
   if (loadingRoutes && routes.length === 0) {
     return <Loader />;
@@ -474,116 +595,97 @@ const RouteLiveTracker = () => {
         />
 
         {/* Controls Panel */}
-        <div className="bg-white p-6 rounded-lg shadow-lg">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Route Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Select Route</label>
-              <select
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={selectedRouteId}
-                onChange={(e) => setSelectedRouteId(e.target.value)}
-              >
-                <option value="">Choose a route...</option>
-                {routes.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.route_number || r.name} — {r.name} — {r.date}
-                  </option>
-                ))}
-              </select>
-              {selectedRoute && (
-                <p className="mt-2 text-sm text-gray-600">
-                  Salesperson: {selectedRoute.salesperson_name || 'N/A'}
-                </p>
-              )}
-              {userRole && (
-                <p className="mt-1 text-xs text-blue-600">
-                  Mode: {userRole === 'admin' ? 'Monitor Only' : 'GPS Tracking'}
-                </p>
-              )}
-            </div>
-
-            {/* Tracking/Monitoring Controls */}
-            <div className="flex flex-col justify-end">
-              <div className="flex gap-2">
-                {!isActive ? (
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex flex-col sm:flex-row gap-4 flex-1">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Route
+                </label>
+                <select
+                  value={selectedRouteId}
+                  onChange={(e) => setSelectedRouteId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Choose a route...</option>
+                  {routes.map((route) => (
+                    <option key={route.id} value={route.id}>
+                      {route.name} - {route.salesperson_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="flex items-end gap-2">
+                <button
+                  onClick={handleStartAction}
+                  disabled={!selectedRouteId || isActive}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <FiActivity className="w-4 h-4" />
+                  Start {actionLabel}
+                </button>
+                
+                <button
+                  onClick={stopTracking}
+                  disabled={!isActive}
+                  className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <FiZap className="w-4 h-4" />
+                  Stop {statusLabel}
+                </button>
+                
+                {userRole !== 'admin' && isActive && (
                   <button
-                    onClick={handleStartAction}
-                    disabled={!selectedRouteId}
-                    className={`px-6 py-2 text-white rounded-md hover:opacity-90 disabled:opacity-50 flex items-center gap-2 ${
-                      userRole === 'admin' 
-                        ? 'bg-blue-600 hover:bg-blue-700' 
-                        : 'bg-green-600 hover:bg-green-700'
-                    }`}
+                    onClick={sendManualPing}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
                   >
-                    {userRole === 'admin' ? <FiEye /> : <FiActivity />}
-                    Start {actionLabel}ing
+                    <FiMapPin className="w-4 h-4" />
+                    Manual Ping
                   </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={stopTracking}
-                      className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2"
-                    >
-                      <FiActivity /> Stop {actionLabel}ing
-                    </button>
-                    {userRole !== 'admin' && (
-                      <button
-                        onClick={sendManualPing}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
-                      >
-                        📍 Manual Ping
-                      </button>
-                    )}
-                  </>
                 )}
               </div>
-              {isActive && (
-                <div className="mt-2 space-y-1">
-                  <p className="text-sm text-gray-600">
-                    🟢 {statusLabel} active
-                    {userRole === 'admin' && ' (read-only)'}
-                  </p>
-                  {userRole !== 'admin' && currentLocation && lastConfirmedLocation && (
-                    <p className="text-xs text-gray-500">
-                      Threshold: {Math.max(20, (currentLocation.accuracy || 25) * 2).toFixed(0)}m
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
+            
+            {/* WebSocket Connection Status */}
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${websocketConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span className="text-sm text-gray-600">
+                {websocketConnected ? 'Real-time Connected' : 'Real-time Disconnected'}
+              </span>
+            </div>
+          </div>
 
-            {/* Display Options */}
-            <div className="flex flex-col justify-end">
-              <div className="flex gap-4">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={showPlannedRoute}
-                    onChange={(e) => setShowPlannedRoute(e.target.checked)}
-                    className="mr-2"
-                  />
-                  <span className="text-sm">Planned Route</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={showActualRoute}
-                    onChange={(e) => setShowActualRoute(e.target.checked)}
-                    className="mr-2"
-                  />
-                  <span className="text-sm">Actual Route</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={showRealTime}
-                    onChange={(e) => setShowRealTime(e.target.checked)}
-                    className="mr-2"
-                  />
-                  <span className="text-sm">Real-time</span>
-                </label>
-              </div>
+          {/* Display Options */}
+          <div className="flex flex-col justify-end">
+            <div className="flex gap-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={showPlannedRoute}
+                  onChange={(e) => setShowPlannedRoute(e.target.checked)}
+                  className="mr-2"
+                />
+                <span className="text-sm">Planned Route</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={showActualRoute}
+                  onChange={(e) => setShowActualRoute(e.target.checked)}
+                  className="mr-2"
+                />
+                <span className="text-sm">Actual Route</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={showRealTime}
+                  onChange={(e) => setShowRealTime(e.target.checked)}
+                  className="mr-2"
+                />
+                <span className="text-sm">Real-time</span>
+              </label>
             </div>
           </div>
         </div>
@@ -593,6 +695,7 @@ const RouteLiveTracker = () => {
           <div className="h-96 w-full">
             <GoogleMapsProvider>
               <GoogleMap
+                key={`route-map-${selectedRouteId}`}
                 center={{
                   lat: Number.isFinite(parseFloat(mapData.center[0])) ? parseFloat(mapData.center[0]) : 25.2048,
                   lng: Number.isFinite(parseFloat(mapData.center[1])) ? parseFloat(mapData.center[1]) : 55.2708,
@@ -600,28 +703,35 @@ const RouteLiveTracker = () => {
                 zoom={mapData.zoom}
                 mapContainerStyle={defaultMapContainerStyle}
               >
+                {/* Road-based planned route */}
                 {showPlannedRoute && selectedRoute?.visits && selectedRoute.visits.length > 1 && (
-                  <Polyline
-                    path={selectedRoute.visits
+                  <RoadRoutePolyline
+                    waypoints={selectedRoute.visits
                       .filter(v => v.lat && v.lon && !isNaN(v.lat) && !isNaN(v.lon))
                       .map(v => ({ lat: parseFloat(v.lat), lng: parseFloat(v.lon) }))}
-                    options={{ strokeColor: 'blue', strokeOpacity: 0.7, strokeWeight: 3 }}
+                    strokeColor="blue"
+                    strokeOpacity={0.7}
+                    strokeWeight={3}
                   />
                 )}
 
+                {/* Road-based actual route */}
                 {showActualRoute && pings.length > 1 && (
-                  <Polyline
-                    path={pings
+                  <RoadRoutePolyline
+                    waypoints={pings
                       .filter(p => p.lat && p.lon && !isNaN(p.lat) && !isNaN(p.lon))
                       .map(p => ({ lat: parseFloat(p.lat), lng: parseFloat(p.lon) }))}
-                    options={{ strokeColor: 'red', strokeOpacity: 0.8, strokeWeight: 4 }}
+                    strokeColor="red"
+                    strokeOpacity={0.8}
+                    strokeWeight={4}
                   />
                 )}
 
+                {/* Planned route markers (blue) - only show when planned route is visible */}
                 {showPlannedRoute && selectedRoute?.visits && selectedRoute.visits.map((visit, index) => (
                   visit.lat && visit.lon && !isNaN(visit.lat) && !isNaN(visit.lon) ? (
                     <Marker 
-                      key={`visit-${visit.id}`} 
+                      key={`planned-visit-${selectedRouteId}-${visit.id}`} 
                       position={{ lat: parseFloat(visit.lat), lng: parseFloat(visit.lon) }}
                       icon={{
                         path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
@@ -635,10 +745,11 @@ const RouteLiveTracker = () => {
                   ) : null
                 ))}
 
+                {/* Actual route markers (red) - only show when actual route is visible */}
                 {showActualRoute && pings.map((ping, index) => (
                   ping.lat && ping.lon && !isNaN(ping.lat) && !isNaN(ping.lon) ? (
                     <Marker 
-                      key={`ping-${ping.id || index}`} 
+                      key={`actual-ping-${selectedRouteId}-${ping.id || index}`} 
                       position={{ lat: parseFloat(ping.lat), lng: parseFloat(ping.lon) }}
                       icon={{
                         path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
@@ -668,132 +779,16 @@ const RouteLiveTracker = () => {
         </div>
 
         {/* Route Summary and Optimization Metrics */}
-        {loadingSummary ? (
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="ml-2">Loading route analytics...</span>
-            </div>
-          </div>
-        ) : (routeSummary || optimizationMetrics) ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Route Summary */}
-            {routeSummary && (
-              <div className="bg-white p-6 rounded-lg shadow-lg">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <FiNavigation className="text-blue-600" />
-                  Route Summary
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-3 bg-blue-50 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {routeSummary.total_distance_km} km
-                    </div>
-                    <div className="text-sm text-gray-600">Total Distance</div>
-                  </div>
-                  <div className="text-center p-3 bg-green-50 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">
-                      {routeSummary.moving_time_hours || routeSummary.total_time_hours}h
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {routeSummary.moving_time_hours ? 'Moving Time' : 'Total Time'}
-                    </div>
-                  </div>
-                  <div className="text-center p-3 bg-purple-50 rounded-lg">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {routeSummary.average_speed_kmh} km/h
-                    </div>
-                    <div className="text-sm text-gray-600">Average Speed</div>
-                  </div>
-                  <div className="text-center p-3 bg-orange-50 rounded-lg">
-                    <div className="text-2xl font-bold text-orange-600">
-                      {routeSummary.ping_count}
-                    </div>
-                    <div className="text-sm text-gray-600">GPS Points</div>
-                  </div>
-                  {routeSummary.max_speed_kmh && (
-                    <div className="text-center p-3 bg-red-50 rounded-lg">
-                      <div className="text-2xl font-bold text-red-600">
-                        {routeSummary.max_speed_kmh} km/h
-                      </div>
-                      <div className="text-sm text-gray-600">Max Speed</div>
-                    </div>
-                  )}
-                  {routeSummary.movement_efficiency_percent !== undefined && (
-                    <div className="text-center p-3 bg-indigo-50 rounded-lg">
-                      <div className="text-2xl font-bold text-indigo-600">
-                        {routeSummary.movement_efficiency_percent}%
-                      </div>
-                      <div className="text-sm text-gray-600">Movement Efficiency</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Optimization Metrics */}
-            {optimizationMetrics && (
-              <div className="bg-white p-6 rounded-lg shadow-lg">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <FiTrendingUp className="text-green-600" />
-                  Route Optimization
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium">Route Efficiency</span>
-                    <span className={`font-bold ${
-                      optimizationMetrics.efficiency_percentage > 80 ? 'text-green-600' :
-                      optimizationMetrics.efficiency_percentage > 60 ? 'text-yellow-600' : 'text-red-600'
-                    }`}>
-                      {optimizationMetrics.efficiency_percentage}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium">Distance Deviation</span>
-                    <span className="font-bold text-red-600">
-                      +{optimizationMetrics.deviation_km} km
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium">Fuel Cost</span>
-                    <span className="font-bold text-orange-600">
-                      ${optimizationMetrics.estimated_fuel_cost}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium">Efficiency Rating</span>
-                    <span className={`font-bold ${
-                      optimizationMetrics.efficiency_rating === 'Excellent' ? 'text-green-600' :
-                      optimizationMetrics.efficiency_rating === 'Good' ? 'text-blue-600' :
-                      optimizationMetrics.efficiency_rating === 'Fair' ? 'text-yellow-600' : 'text-red-600'
-                    }`}>
-                      {optimizationMetrics.efficiency_rating}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : selectedRouteId && !loadingSummary && (
-          <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
-            <div className="flex items-center gap-2">
-              <FiAlertCircle className="text-blue-600" />
-              <h3 className="text-lg font-medium text-blue-800">No GPS Data Available</h3>
-            </div>
-            <p className="text-blue-700 mt-2">
-              No GPS tracking data found for this route. 
-              {userRole === 'admin' 
-                ? ' Wait for the salesperson to start tracking to see route analytics.' 
-                : ' Start tracking to see route analytics and optimization metrics.'
-              }
-            </p>
-          </div>
-        )}
+        <RouteAnalyticsSummary
+          loadingSummary={loadingSummary}
+          routeSummary={routeSummary}
+          optimizationMetrics={optimizationMetrics}
+          selectedRouteId={selectedRouteId}
+          userRole={userRole}
+        />
 
         {/* Advanced Route Optimization */}
-        {selectedRouteId && (
-          <RouteOptimizer selectedRouteId={selectedRouteId} />
-        )}
+     
 
         {/* Customer Visit Logging - Only show for salesperson */}
         {selectedRouteId && userRole !== 'admin' && (

@@ -12,6 +12,7 @@ import { fetchRoutes } from "../redux/routesSlice";
 import { fetchCustomers } from "../redux/customersSlice";
 import { fetchSalesOrders } from "../redux/salesOrdersSlice";
 import { GoogleMapsProvider, GoogleMap, Marker, Autocomplete, defaultMapContainerStyle } from "../components/Common/GoogleMapWrapper";
+import RoadRoutePolyline from "../components/Common/RoadRoutePolyline";
 import PageHeader from '../components/layout/PageHeader';
 import StatsCard from '../components/ui/StatsCard';
 import DataTable from '../components/ui/DataTable';
@@ -607,6 +608,7 @@ const RouteVisits = () => {
                   <GoogleMapsProvider>
                     <SearchBar onSearch={handleSearchResult} onAutocompleteLoadRef={autocompleteRef} />
                     <GoogleMap
+                      key={`route-visits-map-${editMode ? editId : 'new'}`}
                       center={{
                         lat: Number.isFinite(parseFloat(mapCenter[0])) ? parseFloat(mapCenter[0]) : 25.2048,
                         lng: Number.isFinite(parseFloat(mapCenter[1])) ? parseFloat(mapCenter[1]) : 55.2708,
@@ -616,7 +618,10 @@ const RouteVisits = () => {
                       onClick={(e) => handleLocationSelect({ lat: e.latLng.lat(), lng: e.latLng.lng() })}
                     >
                       {selectedPosition && Number.isFinite(parseFloat(selectedPosition[0])) && Number.isFinite(parseFloat(selectedPosition[1])) && (
-                        <Marker position={{ lat: parseFloat(selectedPosition[0]), lng: parseFloat(selectedPosition[1]) }} />
+                        <Marker 
+                          key={`location-picker-${selectedPosition[0]}-${selectedPosition[1]}`}
+                          position={{ lat: parseFloat(selectedPosition[0]), lng: parseFloat(selectedPosition[1]) }} 
+                        />
                       )}
                     </GoogleMap>
                   </GoogleMapsProvider>
