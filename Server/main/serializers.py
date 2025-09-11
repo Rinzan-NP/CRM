@@ -21,7 +21,7 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'id', 'code', 'name', 'unit_price', 'unit_cost', 'vat_category', 'vat_rate',
+            'id', 'code', 'name', 'unit_price', 'unit_cost', 'vat_category', 'vat_rate', 'stock',
             'is_active', 'created_at', 'updated_at', 'company_name'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'vat_rate']
@@ -97,3 +97,5 @@ class VATSettingsSerializer(serializers.ModelSerializer):
         model = VATSettings
         fields = ['id', 'category', 'rate', 'company_name']
         read_only_fields = ['id']
+        
+    

@@ -16,7 +16,7 @@ class SalesOrder(BaseModel):
         ("cancelled", "Cancelled"),
     ]
     # Human-readable ID for display
-    order_number = models.CharField(max_length=20, unique=True, blank=True)
+    order_number = models.CharField(max_length=20, blank=True)
     customer = models.ForeignKey(
         Customer, on_delete=models.CASCADE, related_name="sales_orders"
     )
@@ -35,6 +35,7 @@ class SalesOrder(BaseModel):
             models.Index(fields=["customer", "status"]),
             models.Index(fields=["order_date"]),
         ]
+        unique_together = ("order_number", "company")
 
     def __str__(self):
         return self.order_number or f"SO-{self.order_date.strftime('%y%m%d')}-{str(self.id)[:6]}"
@@ -107,6 +108,8 @@ class OrderLineItem(BaseModel):
         super().save(*args, **kwargs)
         # trigger parent totals
         self.sales_order.calculate_totals()
+        self.product.stock = models.F('stock') - self.quantity
+        self.product.save(update_fields=['stock'])
         self.sales_order.save(
             update_fields=["subtotal", "vat_total", "grand_total", "profit"]
         )
@@ -120,7 +123,7 @@ class PurchaseOrder(BaseModel):
         ("cancelled", "Cancelled"),
     ]
     # Human-readable ID for display
-    order_number = models.CharField(max_length=20, unique=True, blank=True)
+    order_number = models.CharField(max_length=20, blank=True)
     supplier = models.ForeignKey(
         "main.Supplier", on_delete=models.CASCADE, related_name="purchase_orders"
     )
@@ -138,6 +141,7 @@ class PurchaseOrder(BaseModel):
             models.Index(fields=["supplier", "status"]),
             models.Index(fields=["order_date"]),
         ]
+        unique_together = ("order_number", "company")
 
     def __str__(self):
         return self.order_number or f"PO-{self.order_date.strftime('%y%m%d')}-{str(self.id)[:6]}"
@@ -197,6 +201,8 @@ class PurchaseOrderLineItem(BaseModel):
     def save(self, *args, **kwargs):
         self.line_total = (self.unit_cost * self.quantity) * (1 - self.discount / 100)
         super().save(*args, **kwargs)
+        self.product.stock += self.quantity
+        self.product.save(update_fields=['stock'])
         self.purchase_order.calculate_totals()
         self.purchase_order.save(update_fields=["subtotal", "vat_total", "grand_total"])
 
@@ -210,7 +216,7 @@ class Invoice(BaseModel):
         ("cancelled", "Cancelled"),
     ]
     sales_order = models.OneToOneField(SalesOrder, on_delete=models.CASCADE, related_name="invoice")
-    invoice_no  = models.CharField(max_length=50, unique=True, blank=True)
+    invoice_no  = models.CharField(max_length=50, blank=True)
     issue_date  = models.DateField()
     due_date    = models.DateField()
     amount_due  = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)  # = SO.grand_total
@@ -222,6 +228,7 @@ class Invoice(BaseModel):
             models.Index(fields=["invoice_no"]),
             models.Index(fields=["due_date"]),
         ]
+        unique_together = ("invoice_no", "company")
 
     def __str__(self):
         return self.invoice_no

@@ -16,6 +16,9 @@ class CustomerViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return self.queryset.filter(company=self.request.user.company)
 
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)
+
     def create(self, request, *args, **kwargs):
         """Override create method to add debug logging"""
         print(f"DEBUG: Creating customer with data: {request.data}")
@@ -190,6 +193,9 @@ class SupplierViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Supplier.objects.filter(company=self.request.user.company)
 
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)
+
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset         = Product.objects.all()
@@ -199,6 +205,9 @@ class ProductViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Product.objects.filter(company=self.request.user.company)
 
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)
+
 
 class VATSettingsViewSet(viewsets.ModelViewSet):
     queryset = VATSettings.objects.all()
@@ -207,3 +216,6 @@ class VATSettingsViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         return VATSettings.objects.filter(company=self.request.user.company)
+
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)

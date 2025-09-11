@@ -25,6 +25,7 @@ const Products = () => {
     unit_cost: '',
     vat_category: 1,
     is_active: true,
+    stock : 0,
   });
   const [editMode, setEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -57,6 +58,7 @@ const Products = () => {
       unit_price: '',
       unit_cost: '',
       vat_category: 1,
+      stock: 0,
       is_active: true,
     });
     setIsProductModalOpen(false);
@@ -72,6 +74,7 @@ const Products = () => {
       name: '',
       unit_price: '',
       unit_cost: '',
+      stock: 0,
       vat_category: 1,
       is_active: true,
     });
@@ -92,6 +95,7 @@ const Products = () => {
       unit_cost: row.unit_cost,
       vat_category: row.vat_category,
       is_active: row.is_active,
+      stock: row.stock,
     });
     setIsProductModalOpen(true);
   };
@@ -124,6 +128,10 @@ const Products = () => {
       header: 'Unit Cost',
       accessor: 'unit_cost',
       cell: (row) => `$${formatCurrency(row.unit_cost)}`,
+    },
+    {
+      header: 'Stock',
+      accessor: 'stock',
     },
     {
       header: 'VAT Category',
@@ -305,6 +313,17 @@ const Products = () => {
                 required
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 value={product.unit_cost}
+                onChange={handleInputChange}
+              />
+            </FormField>
+
+            <FormField label="Stock" required>
+              <input
+                type="number"
+                name="stock"
+                required
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                value={product.stock}
                 onChange={handleInputChange}
               />
             </FormField>

@@ -64,7 +64,7 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = super().get_queryset().filter(company = request.user.company)
+        qs = super().get_queryset().filter(company=self.request.user.company)
         user = self.request.user
         role = getattr(user, 'role', '')
         if role == 'salesperson':
@@ -72,14 +72,8 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
             return qs.filter(route_visits__route__salesperson=user).distinct()
         return qs
 
-    def get_serializer(self, *args, **kwargs):
-        # Ensure the request context is passed to the serializer
-        kwargs['context'] = self.get_serializer_context()
-        return self.serializer_class(*args, **kwargs)
-    
-    def create(self, request, *args, **kwargs):
-        request['company'] = request.user.company
-        return super().create(request, *args, **kwargs)
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)
 
     @action(detail=True, methods=["get"])
     def profit(self, request, pk=None):
@@ -137,33 +131,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseOrderSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_permissions(self):
-        return [IsAuthenticated()]
+    def get_queryset(self):
+        return super().get_queryset().filter(company=self.request.user.company)
 
-    def has_write_access(self):
-        role = getattr(self.request.user, 'role', )
-        return role in ('admin', 'accountant')
-
-    def create(self, request, *args, **kwargs):
-        if not self.has_write_access():
-            return Response({'detail': 'Forbidden'}, status=403)
-        request['company'] = request.user.company
-        return super().create(request, *args, **kwargs)
-
-    def update(self, request, *args, **kwargs):
-        if not self.has_write_access():
-            return Response({'detail': 'Forbidden'}, status=403)
-        return super().update(request, *args, **kwargs)
-
-    def destroy(self, request, *args, **kwargs):
-        if not self.has_write_access():
-            return Response({'detail': 'Forbidden'}, status=403)
-        return super().destroy(request, *args, **kwargs)
-
-    def get_serializer(self, *args, **kwargs):
-        # Ensure the request context is passed to the serializer
-        kwargs['context'] = self.get_serializer_context()
-        return self.serializer_class(*args, **kwargs)
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)
     
     
 class InvoiceViewSet(viewsets.ModelViewSet):
@@ -172,7 +144,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = super().get_queryset().filter(company = self.request.user.company)
+        qs = super().get_queryset().filter(company=self.request.user.company)
         user = self.request.user
         role = getattr(user, 'role', '')
         if role == 'salesperson':
@@ -180,15 +152,8 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             return qs.filter(sales_order__route_visits__route__salesperson=user).distinct()
         return qs
 
-    def has_write_access(self):
-        role = getattr(self.request.user, 'role', '')
-        return role in ('admin', 'accountant')
-
-    def create(self, request, *args, **kwargs):
-        if not self.has_write_access():
-            return Response({'detail': 'Forbidden'}, status=403)
-        request['company'] = request.user.company
-        return super().create(request, *args, **kwargs)
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)
 
     def update(self, request, *args, **kwargs):
         if not self.has_write_access():
@@ -241,40 +206,15 @@ class PaymentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = super().get_queryset().filter(company = self.request.user.company)
+        qs = super().get_queryset().filter(company=self.request.user.company)
         user = self.request.user
         role = getattr(user, 'role', '')
         if role == 'salesperson':
             return qs.filter(invoice__sales_order__route_visits__route__salesperson=user)
         return qs
 
-    def has_write_access(self):
-        role = getattr(self.request.user, 'role', '')
-        return role in ('admin', 'accountant','salesperson')
-
-    def create(self, request, *args, **kwargs):
-        if not self.has_write_access():
-            return Response({'detail': 'Forbidden'}, status=403)
-        
-        try:
-            request['company'] = request.user.company
-            response = super().create(request, *args, **kwargs)
-            
-            # Refresh the invoice data to get updated outstanding amount
-            payment = Payment.objects.get(id=response.data['id'])
-            invoice = payment.invoice
-            invoice.refresh_from_db()
-            
-            # Add updated invoice info to response
-            response.data['invoice_updated'] = {
-                'paid_amount': str(invoice.paid_amount),
-                'outstanding': str(invoice.outstanding),
-                'status': invoice.status
-            }
-            
-            return response
-        except Exception as e:
-            return Response({'detail': f'Error creating payment: {str(e)}'}, status=500)
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)
 
     def update(self, request, *args, **kwargs):
         if not self.has_write_access():
@@ -299,6 +239,9 @@ class RouteViewSet(viewsets.ModelViewSet):
         if role == 'salesperson':
             return qs.filter(salesperson=user)
         return qs
+
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)
 
     @action(detail=True, methods=["get"])
     def visits(self, request, pk=None):
@@ -345,6 +288,9 @@ class RouteVisitViewSet(viewsets.ModelViewSet):
             qs = qs.filter(route__date__lte=date_to)
         
         return qs.select_related('route', 'customer').prefetch_related('sales_orders')
+
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)
 
     @action(detail=True, methods=['post'])
     def check_in(self, request, pk=None):
@@ -530,59 +476,8 @@ class RouteLocationPingViewSet(viewsets.ModelViewSet):
             qs = qs.filter(route_id=route_id)
         return qs.order_by('-created_at')
 
-    def create(self, request, *args, **kwargs):
-        """Override create to add debugging and better error handling"""
-        try:
-            print(f"Creating RouteLocationPing with data: {request.data}")
-            print(f"User: {request.user}, Role: {getattr(request.user, 'role', 'N/A')}")
-            
-            # Validate required fields
-            route_id = request.data.get('route')
-            lat = request.data.get('lat')
-            lon = request.data.get('lon')
-            
-            if not route_id:
-                return Response({'detail': 'Route ID is required'}, status=400)
-            if not lat or not lon:
-                return Response({'detail': 'Latitude and longitude are required'}, status=400)
-            
-            # Validate coordinates
-            try:
-                lat_float = float(lat)
-                lon_float = float(lon)
-                if lat_float < -90 or lat_float > 90:
-                    return Response({'detail': 'Invalid latitude'}, status=400)
-                if lon_float < -180 or lon_float > 180:
-                    return Response({'detail': 'Invalid longitude'}, status=400)
-            except (ValueError, TypeError):
-                return Response({'detail': 'Invalid coordinate format'}, status=400)
-            
-            # Check if route exists and user has permission
-            try:
-                route = Route.objects.get(id=route_id)
-                print(f"Route found: {route.name}, Salesperson: {route.salesperson}")
-                
-                # Check permissions
-                user = request.user
-                role = getattr(user, 'role', '')
-                if role == 'salesperson' and route.salesperson != user:
-                    print(f"Permission denied: {user} cannot access route {route_id}")
-                    return Response(
-                        {'detail': 'You can only send location for your own routes'}, 
-                        status=403
-                    )
-            except Route.DoesNotExist:
-                print(f"Route not found: {route_id}")
-                return Response({'detail': 'Route not found'}, status=404)
-            request['company'] = user.company
-            response = super().create(request, *args, **kwargs)
-            print(f"Successfully created ping: {response.data}")
-            return response
-            
-        except Exception as e:
-            print(f"Error creating RouteLocationPing: {e}")
-            print(f"Request data: {request.data}")
-            return Response({'detail': f'Error creating location ping: {str(e)}'}, status=500)
+    def perform_create(self, serializer):
+        serializer.save(company=self.request.user.company)
 
     @action(detail=False, methods=['get'])
     def route_summary(self, request):

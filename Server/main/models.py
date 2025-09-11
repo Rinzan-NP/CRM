@@ -15,7 +15,7 @@ class BaseModel(models.Model):
         abstract = True
 class Customer(models.Model):
     name = models.CharField(max_length=255)
-    email = models.EmailField(unique=True)
+    email = models.EmailField()
     phone = models.CharField(max_length=20, blank=True, null=True)
     credit_limit = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     address = models.TextField(blank=True, null=True)
@@ -85,10 +85,13 @@ class Customer(models.Model):
             return self.address
         else:
             return "Location not specified"
+        
+    class Meta:
+        unique_together = ('email', 'company')
 
 class Supplier(models.Model):
     name = models.CharField(max_length=255)
-    email = models.EmailField(unique=True)
+    email = models.EmailField()
     phone = models.CharField(max_length=20, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     credit_limit = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -103,10 +106,14 @@ class Supplier(models.Model):
     def get_balance(self):
         # Placeholder for balance calculation logic
         return 0.0
+
+    class Meta:
+        unique_together = ('email', 'company')
+        
     
         
 class VATSettings(models.Model):
-    category = models.CharField(max_length=100, unique=True)
+    category = models.CharField(max_length=100)
     rate = models.DecimalField(max_digits=5, decimal_places=2)
     company = models.ForeignKey(Company, on_delete=models.CASCADE)
 
@@ -119,10 +126,13 @@ class VATSettings(models.Model):
             raise ValidationError('VAT rate cannot be negative.')
         if not self.category:
             raise ValidationError('VAT category is required.')
+    
+    class Meta:
+        unique_together = ('category', 'company')
 
 
 class Product(BaseModel):
-    code = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=100)
     name = models.CharField(max_length=255)
     company = models.ForeignKey(Company, on_delete=models.CASCADE)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -133,6 +143,7 @@ class Product(BaseModel):
     related_name='products'
 )
     is_active = models.BooleanField(default=True)
+    stock = models.IntegerField(default=0)
 
     def __str__(self):
         return self.name
@@ -156,3 +167,4 @@ class Product(BaseModel):
             models.Index(fields=['code']),
             models.Index(fields=['name']),
         ]
+        unique_together = ('code', 'company')   
