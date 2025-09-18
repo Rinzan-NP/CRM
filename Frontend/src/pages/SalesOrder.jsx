@@ -29,7 +29,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Loader from '../components/Common/Loader';
 
-const SalesOrders = () => {
+const SalesOrders = ({type ='admin'}) => {
     const {
         salesOrders,
         loading: salesOrdersLoading

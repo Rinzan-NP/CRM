@@ -21,10 +21,13 @@ export const createUser = createAsyncThunk(
   async (userData, { rejectWithValue }) => {
     try {
       const response = await api.post('/accounts/register/', userData);
-  
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to create user');
+      const errorMessage =
+        error.response?.data?.password || // Capture password-specific errors
+        error.response?.data?.detail ||
+        'Failed to create user';
+      return rejectWithValue(errorMessage);
     }
   }
 );

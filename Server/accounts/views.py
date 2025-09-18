@@ -14,12 +14,19 @@ from rest_framework import status
 User = get_user_model()
 
 class RegisterView(generics.CreateAPIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated]
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
 
     def perform_create(self, serializer):
         serializer.save(company=self.request.user.company)
+
+    def post(self, request, *args, **kwargs):
+        print("Request data:", request.data)  # Debugging output
+        response = super().post(request, *args, **kwargs)
+        print("Response status code:", response.status_code)  # Debugging output
+        print("Response data:", response.data)  # Debugging output
+        return response
 
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
@@ -34,8 +41,10 @@ class LoginView(generics.GenericAPIView):
 
         user = authenticate(request, username=email, password=password)
         if user is None:
+            print("Authentication failed for email:", email)  # Debugging output
             return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
         if user.blocked:
+            print("User is blocked:", email)  # Debugging output
             return Response({"detail": "User is blocked"}, status=status.HTTP_403_FORBIDDEN)
 
         refresh = RefreshToken.for_user(user)

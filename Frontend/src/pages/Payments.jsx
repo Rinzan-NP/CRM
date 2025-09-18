@@ -75,7 +75,7 @@ const Payments = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Validation
     if (!formData.invoice) {
       setToastMessage('Please select an invoice');
@@ -101,8 +101,11 @@ const Payments = () => {
     try {
       const paymentData = {
         ...formData,
-        amount: parseFloat(formData.amount)
+        invoice_id: formData.invoice, // Rename `invoice` to `invoice_id`
+        amount: parseFloat(formData.amount),
       };
+
+      console.log('Submitting payment data:', paymentData); // Debugging log
 
       let result;
       if (isEditing) {
@@ -111,21 +114,22 @@ const Payments = () => {
       } else {
         result = await dispatch(createPayment(paymentData)).unwrap();
         setToastMessage('Payment created successfully');
-        
+
         // Store the payment result to show updated invoice info
         if (result.invoice_updated) {
           setLastPaymentResult(result.invoice_updated);
         }
       }
-      
+
       // Refresh invoices to get updated outstanding amounts
       dispatch(fetchInvoices());
-      
+
       setToastType('success');
       setShowToast(true);
       resetForm();
       setShowModal(false);
     } catch (error) {
+      console.error('Error creating payment:', error); // Debugging log
       setToastMessage(error.message || 'Operation failed');
       setToastType('error');
       setShowToast(true);

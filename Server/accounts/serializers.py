@@ -6,20 +6,25 @@ User = get_user_model()
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
-
+    
     class Meta:
         model  = User
         fields = ("id", "email", "password", "role","company")
+        
+        read_only_fields = ("id","company")
 
     def create(self, validated_data):
-        user = User.objects.create_user(
-            email=validated_data["email"],
-            username=validated_data["email"],  
-            password=validated_data["password"],
-             company=validated_data["company"],
-            role=validated_data.get("role", "Salesperson"),
-        )
-        return user
+        try:
+            user = User.objects.create_user(
+                email=validated_data["email"],
+                username=validated_data["email"],  
+                password=validated_data["password"],  # Default password
+                company=self.context['request'].user.company,  # Assign company from request.user
+                role=validated_data.get("role", "Salesperson"),
+            )
+            return user
+        except Exception as e:
+            raise serializers.ValidationError({"detail": str(e)})
 
 
 class LoginSerializer(serializers.Serializer):

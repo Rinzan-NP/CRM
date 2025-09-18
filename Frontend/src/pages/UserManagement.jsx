@@ -16,6 +16,7 @@ const UsersManagement = () => {
   const [user, setUser] = useState({
     email: '',
     role: '',
+    password: '',
   });
   
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -38,10 +39,18 @@ const UsersManagement = () => {
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
+
+    // Frontend validation for password
+    if (!user.password || user.password.length < 8) {
+      alert("Password must be at least 8 characters long.");
+      return;
+    }
+
     await dispatch(createUser(user));
     setUser({
       email: '',
       role: '',
+      password: '', // Reset password field
     });
     setIsUserModalOpen(false);
   };
@@ -247,6 +256,18 @@ const UsersManagement = () => {
                   </option>
                 ))}
               </select>
+            </FormField>
+
+            <FormField label="Password" required>
+              <input
+                type="password"
+                name="password"
+                required
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                value={user.password || ''}
+                onChange={handleInputChange}
+                placeholder="Enter a secure password"
+              />
             </FormField>
           </div>
 

@@ -69,11 +69,11 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         role = getattr(user, 'role', '')
         if role == 'salesperson':
             # Filter by route visits where user is the salesperson
-            return qs.filter(route_visits__route__salesperson=user).distinct()
+            return qs.filter(created_by=user)
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(company=self.request.user.company)
+        serializer.save(company=self.request.user.company, created_by=self.request.user)
 
     @action(detail=True, methods=["get"])
     def profit(self, request, pk=None):

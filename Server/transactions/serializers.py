@@ -132,12 +132,25 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
 
 class PaymentSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source="company.name", read_only=True)
+    invoice_id = serializers.UUIDField(write_only=True)  # Add writable field for invoice_id
 
     class Meta:
         model = Payment
-        fields = ['id', 'invoice', 'amount', 'paid_on', 'mode', 'company_name']
+        fields = ['id', 'invoice', 'amount', 'paid_on', 'mode', 'company_name', 'invoice_id']
         read_only_fields = ['id', 'invoice', 'paid_on', 'company_name']
 
+    def create(self, validated_data):
+        invoice_id = validated_data.pop('invoice_id', None)
+        if not invoice_id:
+            raise serializers.ValidationError({"invoice_id": "This field is required."})
+
+        try:
+            invoice = Invoice.objects.get(id=invoice_id)
+        except Invoice.DoesNotExist:
+            raise serializers.ValidationError({"invoice_id": "Invalid invoice ID."})
+
+        validated_data['invoice'] = invoice
+        return super().create(validated_data)
     
 
 class InvoiceSerializer(serializers.ModelSerializer):

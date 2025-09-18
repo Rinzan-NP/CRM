@@ -6,6 +6,7 @@ from django.db import models
 from django.db import models
 from django.conf import settings
 from main.models import BaseModel, Customer, Product, VATSettings,Company
+from accounts.models import User
 
 
 class SalesOrder(BaseModel):
@@ -29,7 +30,7 @@ class SalesOrder(BaseModel):
     profit = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     # When true, unit prices entered on line items are VAT-inclusive (gross)
     prices_include_vat = models.BooleanField(default=False)
-
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_sales_orders')
     class Meta:
         indexes = [
             models.Index(fields=["customer", "status"]),
@@ -288,7 +289,7 @@ class Invoice(BaseModel):
 class Payment(BaseModel):
     invoice = models.ForeignKey(Invoice, related_name="payments", on_delete=models.CASCADE)
     amount  = models.DecimalField(max_digits=12, decimal_places=2)
-    paid_on = models.DateField()
+    paid_on = models.DateField(auto_now=True)
     mode    = models.CharField(max_length=30, choices=[("cash", "Cash"), ("bank", "Bank")])
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='payments')
 

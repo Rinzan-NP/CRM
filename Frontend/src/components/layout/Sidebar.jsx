@@ -36,7 +36,7 @@ const navigationGroups = [
   {
     label: "Transactions",
     items: [
-      { label: "Sales Orders", to: "/transactions/sales-orders", icon: FiShoppingCart, roles: ["admin", "accountant"] },
+      { label: "Sales Orders", to: "/transactions/sales-orders", icon: FiShoppingCart, roles: ["admin", "accountant","salesperson"] },
       { label: "Purchase Orders", to: "/transactions/purchase-orders", icon: FiFileText, roles: ["admin", "accountant"] },
       { label: "Invoices", to: "/transactions/invoices", icon: FiDollarSign, roles: ["admin", "accountant"] },
       { label: "Payments", to: "/transactions/payments", icon: FiDollarSign, roles: ["admin", "accountant"] },
@@ -45,7 +45,7 @@ const navigationGroups = [
   {
     label: "Routes & Tracking",
     items: [
-      { label: "Routes", to: "/transactions/routes", icon: FiMap, roles: ["admin", "salesperson"] },
+      { label: "Routes", to: "/transactions/routes", icon: FiMap, roles: ["admin"] },
       { label: "Route Visits", to: "/transactions/route-visits", icon: FiMapPin, roles: ["admin", "salesperson"] },
       { label: "Live Tracking", to: "/transactions/route-live-tracker", icon: FiActivity, roles: ["admin", "salesperson"] },
     ]
@@ -56,7 +56,7 @@ const navigationGroups = [
       { label: "Audit Logs", to: "/audit/audit-logs", icon: FiFileText, roles: ["admin"] },
       { label: "Reports", to: "/reports", icon: FiBarChart2, roles: ["admin"] },
     ]
-  }
+  },
 ];
 
 const Sidebar = ({ isOpen, onClose }) => {

@@ -16,7 +16,7 @@ class Company(models.Model):
 class User(AbstractUser):
     ROLE_CHOICES = (
         ('admin', 'Admin'),
-        ('', 'Salesperson'),
+        ('salesperson', 'Salesperson'),  # Corrected key
         ('accountant', 'Accountant'),
     )
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
