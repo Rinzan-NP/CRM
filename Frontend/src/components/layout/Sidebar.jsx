@@ -21,7 +21,7 @@ const navigationGroups = [
   {
     label: "Dashboard",
     items: [
-      { label: "Dashboard", to: "/", icon: FiHome, roles: ["admin", "accountant", "salesperson"] },
+      { label: "Dashboard", to: "/", icon: FiHome, roles: ["admin"] },
     ]
   },
   {
