@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { NavLink } from "react-router-dom";
 import {
   FiHome,
@@ -67,12 +67,14 @@ const Sidebar = ({ isOpen, onClose }) => {
   
 
   // Filter navigation groups based on user role and initialize expanded state
-  const filteredGroups = navigationGroups.map(group => ({
-    ...group,
-    items: group.items.filter(item =>
-      item.roles.includes(userRole?.toLowerCase() || '')
-    )
-  })).filter(group => group.items.length > 0);
+  const filteredGroups = useMemo(() => {
+    return navigationGroups.map(group => ({
+      ...group,
+      items: group.items.filter(item =>
+        item.roles.includes(userRole?.toLowerCase() || '')
+      )
+    })).filter(group => group.items.length > 0);
+  }, [userRole]);
 
   // Initialize expanded state for groups that have items
   useEffect(() => {
@@ -86,7 +88,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       }
     });
     setExpandedGroups(initialExpandedState);
-  }, [userRole]);
+  }, [filteredGroups]);
 
   const toggleGroup = (groupLabel) => {
     setExpandedGroups(prev => ({
@@ -165,7 +167,9 @@ const Sidebar = ({ isOpen, onClose }) => {
               {/* Group Items */}
               {(expandedGroups[group.label] || group.items.length === 1) && (
                 <div className={group.items.length > 1 ? "ml-3 mt-1 space-y-1" : "space-y-1"}>
-                  {group.items.map(({ label, to, icon: Icon }) => (
+                  {group.items.map(({ label, to, icon }) => {
+                    const Icon = icon;
+                    return (
                     <NavLink
                       key={to}
                       to={to}
@@ -186,7 +190,8 @@ const Sidebar = ({ isOpen, onClose }) => {
                       <Icon className="h-4 w-4" />
                       <span>{label}</span>
                     </NavLink>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

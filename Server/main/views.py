@@ -15,6 +15,7 @@ from .serializers import (
     VATSettingsSerializer,
 )
 from .services import LocationService
+from audit.signals import AuditContext
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
@@ -26,7 +27,14 @@ class CustomerViewSet(viewsets.ModelViewSet):
         return self.queryset.filter(company=self.request.user.company)
 
     def perform_create(self, serializer):
-        serializer.save(company=self.request.user.company)
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save(company=self.request.user.company)
+
+    def perform_update(self, serializer):
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save()
 
     def create(self, request, *args, **kwargs):
         """Override create method to add debug logging"""
@@ -205,7 +213,14 @@ class SupplierViewSet(viewsets.ModelViewSet):
         return Supplier.objects.filter(company=self.request.user.company)
 
     def perform_create(self, serializer):
-        serializer.save(company=self.request.user.company)
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save(company=self.request.user.company)
+
+    def perform_update(self, serializer):
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save()
 
 
 class ProductViewSet(viewsets.ModelViewSet):
@@ -217,7 +232,14 @@ class ProductViewSet(viewsets.ModelViewSet):
         return Product.objects.filter(company=self.request.user.company)
 
     def perform_create(self, serializer):
-        serializer.save(company=self.request.user.company)
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save(company=self.request.user.company)
+
+    def perform_update(self, serializer):
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save()
 
 
 class VATSettingsViewSet(viewsets.ModelViewSet):
@@ -229,7 +251,14 @@ class VATSettingsViewSet(viewsets.ModelViewSet):
         return VATSettings.objects.filter(company=self.request.user.company)
 
     def perform_create(self, serializer):
-        serializer.save(company=self.request.user.company)
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save(company=self.request.user.company)
+
+    def perform_update(self, serializer):
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save()
 
 class CreditViewSet(viewsets.ModelViewSet):
     queryset = Credit.objects.all()
@@ -238,6 +267,16 @@ class CreditViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         return Credit.objects.filter(invoice__company=self.request.user.company)
+    
+    def perform_create(self, serializer):
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save()
+
+    def perform_update(self, serializer):
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save()
     
     
 class TestEndpoint(APIView):

@@ -9,6 +9,7 @@ from django.contrib.auth import authenticate
 from base.permissions import IsNotBlocked,IsAdminUser
 from rest_framework.views import APIView
 from rest_framework import status
+from audit.signals import audit_user_action
 # Create your views here.
 
 User = get_user_model()
@@ -86,6 +87,9 @@ class UserBlockAndUnblock(APIView):
         except User.DoesNotExist:
             return Response({"detail": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
+        # Store before data for audit log
+        before_data = {"blocked": user.blocked}
+
         if action == "block":
             user.blocked = True
         elif action == "unblock":
@@ -94,4 +98,15 @@ class UserBlockAndUnblock(APIView):
             return Response({"detail": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
 
         user.save()
+        
+        # Create audit log for the block/unblock action
+        audit_user_action(
+            user=request.user,
+            action=action,
+            model_name="User",
+            record_number=user.username,
+            before_data=before_data,
+            after_data={"blocked": user.blocked}
+        )
+        
         return Response({"detail": "User status updated"}, status=status.HTTP_200_OK)

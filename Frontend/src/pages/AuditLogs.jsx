@@ -6,8 +6,7 @@ import {
   fetchAuditDashboard,
   setFilters, 
   clearFilters, 
-  setCurrentPage,
-  clearError
+  setCurrentPage
 } from '../redux/auditLogsSlice';
 import PageHeader from '../components/layout/PageHeader';
 import { 
@@ -43,13 +42,9 @@ const AuditLogs = () => {
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
-    dispatch(fetchAuditLogs(filters));
+    dispatch(fetchAuditLogs({ ...filters, page: pagination.currentPage }));
     dispatch(fetchAuditStatistics({ days: 30 }));
     dispatch(fetchAuditDashboard());
-  }, [dispatch]);
-
-  useEffect(() => {
-    dispatch(fetchAuditLogs({ ...filters, page: pagination.currentPage }));
   }, [dispatch, filters, pagination.currentPage]);
 
   const toggleRowExpansion = (logId) => {
@@ -69,7 +64,7 @@ const AuditLogs = () => {
 
   const handleClearFilters = () => {
     dispatch(clearFilters());
-    dispatch(setCurrentPage(1));
+    dispatch(setCurrentPage(1)); // Reset to first page when clearing filters
   };
 
   const handlePageChange = (page) => {
@@ -77,27 +72,25 @@ const AuditLogs = () => {
   };
 
   const handleRefresh = () => {
-    dispatch(fetchAuditLogs(filters));
+    dispatch(fetchAuditLogs({ ...filters, page: pagination.currentPage }));
     dispatch(fetchAuditStatistics({ days: 30 }));
     dispatch(fetchAuditDashboard());
   };
 
   const getActionBadgeClasses = (action) => {
     switch (action) {
-      case 'CREATE':
+      case 'create':
         return 'bg-green-100 text-green-800 border-green-200';
-      case 'UPDATE':
+      case 'update':
         return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'DELETE':
+      case 'delete':
         return 'bg-red-100 text-red-800 border-red-200';
-      case 'BLOCK':
+      case 'block':
         return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'UNBLOCK':
+      case 'unblock':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'LOGIN':
+      case 'read':
         return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'LOGOUT':
-        return 'bg-gray-100 text-gray-800 border-gray-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -125,9 +118,9 @@ const AuditLogs = () => {
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center space-x-2">
                   <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full border ${getActionBadgeClasses(log.action)}`}>
-                    {log.get_action_display || log.action}
+                    {log.action}
                   </span>
-                  <span className="text-sm font-medium text-gray-600">{log.get_category_display || log.category}</span>
+                  <span className="text-sm font-medium text-gray-600">{log.model_name}</span>
                 </div>
                 <div className="text-right">
                   <div className="text-xs text-gray-500">{date}</div>
@@ -138,25 +131,16 @@ const AuditLogs = () => {
               <div className="flex items-center space-x-4 text-sm">
                 <div className="flex items-center space-x-1 text-gray-600">
                   <FiUser className="h-3 w-3" />
-                  <span className="font-medium">{log.user?.username || log.user?.email || 'System'}</span>
+                  <span className="font-medium">{log.performed_by_username || log.performed_by_email || 'System'}</span>
                 </div>
-                {log.user?.role && (
-                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                    {log.user.role}
-                  </span>
-                )}
               </div>
               
-              {log.description && (
-                <div className="mt-3 p-2 bg-blue-50 rounded-lg">
-                  <p className="text-xs text-blue-800 font-medium">{log.description}</p>
-                </div>
-              )}
+              {/* Description field removed as it's not in the new audit model */}
               
               <div className="flex items-center justify-between mt-3">
                 <div className="flex items-center space-x-1 text-xs text-gray-500">
                   <FiHash className="h-3 w-3" />
-                  <span>{log.model_name} #{log.object_id}</span>
+                  <span>{log.model_name} #{log.record_number || log.id}</span>
                 </div>
                 
                 <button
@@ -177,30 +161,22 @@ const AuditLogs = () => {
             {/* Expandable Changes Section */}
             {isExpanded && (
               <div className="p-4 bg-gray-50">
-                {log.get_changes_summary && (
-                  <>
-                    <div className="text-xs text-gray-600 mb-2 font-medium">Summary:</div>
-                    <div className="text-xs bg-white p-3 rounded border border-gray-200 mb-3">
-                      {log.get_changes_summary}
-                    </div>
-                  </>
-                )}
                 <div className="text-xs text-gray-600 mb-2 font-medium">Detailed Changes:</div>
                 <div className="space-y-2">
-                  {log.old_values && Object.keys(log.old_values).length > 0 && (
+                  {log.before_data && Object.keys(log.before_data).length > 0 && (
                     <div>
-                      <div className="text-xs font-medium text-red-600 mb-1">Old Values:</div>
+                      <div className="text-xs font-medium text-red-600 mb-1">Before Data:</div>
                       <pre className="text-xs bg-red-50 p-2 rounded border border-red-200 overflow-auto max-h-32">
-                        {JSON.stringify(log.old_values, null, 2)}
+                        {JSON.stringify(log.before_data, null, 2)}
                       </pre>
                     </div>
                   )}
-                  {log.new_values && Object.keys(log.new_values).length > 0 && (
+                  {log.after_data && Object.keys(log.after_data).length > 0 && (
                     <div>
-                      <div className="text-xs font-medium text-green-600 mb-1">New Values:</div>
+                      <div className="text-xs font-medium text-green-600 mb-1">After Data:</div>
                       <pre className="text-xs bg-green-50 p-2 rounded border border-green-200 overflow-auto max-h-32">
-                        {JSON.stringify(log.new_values, null, 2)}
-                </pre>
+                        {JSON.stringify(log.after_data, null, 2)}
+                      </pre>
                     </div>
                   )}
                 </div>
@@ -265,28 +241,23 @@ const AuditLogs = () => {
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900 truncate max-w-32">
-                        {log.user?.username || log.user?.email || 'System'}
+                        {log.performed_by_username || log.performed_by_email || 'System'}
                       </div>
-                      {log.user?.role && (
-                        <div className="text-xs text-gray-500 truncate">
-                          {log.user.role}
-                        </div>
-                      )}
                     </div>
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getActionBadgeClasses(log.action)}`}>
-                      {log.get_action_display || log.action}
+                      {log.action}
                     </span>
                   </td>
                   <td className="hidden md:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <span className="truncate max-w-24">{log.get_category_display || log.category}</span>
+                    <span className="truncate max-w-24">{log.model_name}</span>
                   </td>
                   <td className="hidden lg:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <div className="space-y-1">
                       <div className="font-mono text-xs">{log.model_name}</div>
-                      {log.document_number && (
-                        <div className="text-xs text-blue-600">#{log.document_number}</div>
+                      {log.record_number && (
+                        <div className="text-xs text-blue-600">#{log.record_number}</div>
                       )}
                     </div>
                   </td>
@@ -302,26 +273,21 @@ const AuditLogs = () => {
                         View Changes
                       </summary>
                       <div className="mt-2 relative">
-                        {log.get_changes_summary && (
-                          <div className="text-xs bg-blue-50 p-2 rounded mb-2 border border-blue-200">
-                            <strong>Summary:</strong> {log.get_changes_summary}
-                          </div>
-                        )}
                         <div className="space-y-2">
-                          {log.old_values && Object.keys(log.old_values).length > 0 && (
+                          {log.before_data && Object.keys(log.before_data).length > 0 && (
                             <div>
-                              <div className="text-xs font-medium text-red-600 mb-1">Old Values:</div>
+                              <div className="text-xs font-medium text-red-600 mb-1">Before Data:</div>
                               <pre className="text-xs bg-red-50 p-2 rounded border border-red-200 overflow-auto max-h-32">
-                                {JSON.stringify(log.old_values, null, 2)}
+                                {JSON.stringify(log.before_data, null, 2)}
                               </pre>
                             </div>
                           )}
-                          {log.new_values && Object.keys(log.new_values).length > 0 && (
+                          {log.after_data && Object.keys(log.after_data).length > 0 && (
                             <div>
-                              <div className="text-xs font-medium text-green-600 mb-1">New Values:</div>
+                              <div className="text-xs font-medium text-green-600 mb-1">After Data:</div>
                               <pre className="text-xs bg-green-50 p-2 rounded border border-green-200 overflow-auto max-h-32">
-                                {JSON.stringify(log.new_values, null, 2)}
-                        </pre>
+                                {JSON.stringify(log.after_data, null, 2)}
+                              </pre>
                             </div>
                           )}
                         </div>
@@ -369,35 +335,33 @@ const AuditLogs = () => {
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All Actions</option>
-            <option value="CREATE">Create</option>
-            <option value="UPDATE">Update</option>
-            <option value="DELETE">Delete</option>
-            <option value="BLOCK">Block</option>
-            <option value="UNBLOCK">Unblock</option>
-            <option value="LOGIN">Login</option>
-            <option value="LOGOUT">Logout</option>
+            <option value="create">Create</option>
+            <option value="update">Update</option>
+            <option value="delete">Delete</option>
+            <option value="block">Block</option>
+            <option value="unblock">Unblock</option>
+            <option value="read">Read</option>
           </select>
         </div>
         
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
           <select
-            value={filters.category}
-            onChange={(e) => handleFilterChange('category', e.target.value)}
+            value={filters.model_name}
+            onChange={(e) => handleFilterChange('model_name', e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">All Categories</option>
-            <option value="USER">User Management</option>
-            <option value="CUSTOMER">Customer Management</option>
-            <option value="SUPPLIER">Supplier Management</option>
-            <option value="PRODUCT">Product Management</option>
-            <option value="VAT">VAT Management</option>
-            <option value="ROUTE">Route Management</option>
-            <option value="ROUTE_VISIT">Route Visit Management</option>
-            <option value="SALES_ORDER">Sales Order Management</option>
-            <option value="INVOICE">Invoice Management</option>
-            <option value="PAYMENT">Payment Management</option>
-            <option value="SYSTEM">System Operations</option>
+            <option value="">All Models</option>
+            <option value="User">User</option>
+            <option value="Customer">Customer</option>
+            <option value="Supplier">Supplier</option>
+            <option value="Product">Product</option>
+            <option value="VAT">VAT</option>
+            <option value="Route">Route</option>
+            <option value="RouteVisit">Route Visit</option>
+            <option value="SalesOrder">Sales Order</option>
+            <option value="Invoice">Invoice</option>
+            <option value="Payment">Payment</option>
           </select>
         </div>
         
@@ -625,7 +589,7 @@ const AuditLogs = () => {
                 <div className="ml-3">
                   <p className="text-xs sm:text-sm font-medium text-gray-600">Users</p>
                   <p className="text-lg sm:text-xl font-bold text-gray-900">
-                    {Object.keys(statistics?.user_stats || {}).length}
+                    {statistics?.user_stats?.length || 0}
                   </p>
                 </div>
               </div>
@@ -637,9 +601,9 @@ const AuditLogs = () => {
                   <FiDatabase className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600">Categories</p>
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">Models</p>
                   <p className="text-lg sm:text-xl font-bold text-gray-900">
-                    {Object.keys(statistics?.category_stats || {}).length}
+                    {statistics?.model_stats?.length || 0}
                   </p>
                 </div>
               </div>

@@ -6,7 +6,7 @@ export const fetchAuditLogs = createAsyncThunk(
   'auditLogs/fetchAuditLogs',
   async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await api.get('/audit/api/logs/', { params });
+      const response = await api.get('/audit/logs/', { params });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data || error.message);
@@ -19,7 +19,7 @@ export const fetchAuditLogDetail = createAsyncThunk(
   'auditLogs/fetchAuditLogDetail',
   async (logId, { rejectWithValue }) => {
     try {
-      const response = await api.get(`/audit/api/logs/${logId}/`);
+      const response = await api.get(`/audit/logs/${logId}/`);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data || error.message);
@@ -32,7 +32,7 @@ export const fetchAuditStatistics = createAsyncThunk(
   'auditLogs/fetchAuditStatistics',
   async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await api.get('/audit/api/statistics/', { params });
+      const response = await api.get('/audit/statistics/', { params });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data || error.message);
@@ -45,7 +45,7 @@ export const fetchAuditDashboard = createAsyncThunk(
   'auditLogs/fetchAuditDashboard',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get('/audit/api/dashboard/');
+      const response = await api.get('/audit/dashboard/');
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data || error.message);
@@ -58,7 +58,7 @@ export const exportAuditLogs = createAsyncThunk(
   'auditLogs/exportAuditLogs',
   async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await api.get('/audit/api/export/', { params });
+      const response = await api.get('/audit/export/', { params });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data || error.message);
@@ -88,12 +88,11 @@ const auditLogsSlice = createSlice({
     },
     filters: {
       action: '',
-      category: '',
       model_name: '',
       search: '',
       date_from: '',
       date_to: '',
-      user: '',
+      performed_by: '',
     },
   },
   reducers: {
@@ -103,12 +102,11 @@ const auditLogsSlice = createSlice({
     clearFilters: (state) => {
       state.filters = {
         action: '',
-        category: '',
         model_name: '',
         search: '',
         date_from: '',
         date_to: '',
-        user: '',
+        performed_by: '',
       };
     },
     setCurrentPage: (state, action) => {
@@ -127,14 +125,36 @@ const auditLogsSlice = createSlice({
       })
       .addCase(fetchAuditLogs.fulfilled, (state, action) => {
         state.loading = false;
-        state.auditLogs = action.payload.results || action.payload;
-        if (action.payload.count !== undefined) {
+        // Handle both paginated and non-paginated responses
+        if (action.payload.results) {
+          // Paginated response
+          state.auditLogs = action.payload.results;
           state.pagination = {
             count: action.payload.count,
-            totalPages: action.payload.total_pages,
-            currentPage: action.payload.current_page,
-            hasNext: action.payload.has_next,
-            hasPrevious: action.payload.has_previous,
+            totalPages: Math.ceil(action.payload.count / 20), // Assuming 20 items per page
+            currentPage: action.payload.current_page || 1,
+            hasNext: action.payload.next !== null,
+            hasPrevious: action.payload.previous !== null,
+          };
+        } else if (Array.isArray(action.payload)) {
+          // Direct array response
+          state.auditLogs = action.payload;
+          state.pagination = {
+            count: action.payload.length,
+            totalPages: 1,
+            currentPage: 1,
+            hasNext: false,
+            hasPrevious: false,
+          };
+        } else {
+          // Fallback
+          state.auditLogs = [];
+          state.pagination = {
+            count: 0,
+            totalPages: 0,
+            currentPage: 1,
+            hasNext: false,
+            hasPrevious: false,
           };
         }
       })

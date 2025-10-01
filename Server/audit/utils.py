@@ -2,8 +2,29 @@ from django.utils import timezone
 from django.contrib.auth import get_user_model
 from .models import AuditLog
 import json
+import uuid
+from decimal import Decimal
+from datetime import date, datetime
 
 User = get_user_model()
+
+
+class AuditJSONEncoder(json.JSONEncoder):
+    """
+    Custom JSON encoder for audit logs that handles non-serializable objects.
+    """
+    def default(self, obj):
+        if isinstance(obj, uuid.UUID):
+            return str(obj)
+        elif isinstance(obj, Decimal):
+            return float(obj)
+        elif isinstance(obj, (date, datetime)):
+            return obj.isoformat()
+        elif hasattr(obj, 'pk'):  # Django model instances
+            return str(obj)
+        elif hasattr(obj, 'isoformat'):  # DateTime objects
+            return obj.isoformat()
+        return super().default(obj)
 
 
 def create_audit_log(
@@ -65,14 +86,30 @@ def create_audit_log(
     if timestamp is None:
         timestamp = timezone.now()
     
+    # Serialize data using custom encoder to handle UUIDs and other non-serializable objects
+    serialized_before_data = None
+    serialized_after_data = None
+    
+    if before_data is not None:
+        try:
+            serialized_before_data = json.loads(json.dumps(before_data, cls=AuditJSONEncoder))
+        except (TypeError, ValueError):
+            serialized_before_data = {"error": "Failed to serialize before_data"}
+    
+    if after_data is not None:
+        try:
+            serialized_after_data = json.loads(json.dumps(after_data, cls=AuditJSONEncoder))
+        except (TypeError, ValueError):
+            serialized_after_data = {"error": "Failed to serialize after_data"}
+    
     # Create the audit log entry
     audit_log = AuditLog.objects.create(
         model_name=model,
         record_number=number,
         action=action,
         performed_by=performed_by,
-        before_data=before_data,
-        after_data=after_data,
+        before_data=serialized_before_data,
+        after_data=serialized_after_data,
         timestamp=timestamp
     )
     
@@ -82,6 +119,7 @@ def create_audit_log(
 def get_model_data(instance, fields=None):
     """
     Extract data from a model instance for audit logging.
+    Excludes system fields to keep only relevant business data.
     
     Args:
         instance: Model instance to extract data from
@@ -93,23 +131,55 @@ def get_model_data(instance, fields=None):
     if instance is None:
         return None
     
+    # System fields to exclude from audit data
+    SYSTEM_FIELDS = {
+        'id', 'created_at', 'updated_at', 'created_by', 'updated_by',
+        'company_id', 'company', 'is_active', 'is_deleted', 'deleted_at',
+        'last_login', 'date_joined', 'password', 'password_hash',
+        'session_key', 'session_data', 'csrf_token'
+    }
+    
     data = {}
     
     if fields is None:
-        # Get all fields from the model
-        fields = [field.name for field in instance._meta.fields]
+        # Get all fields from the model, excluding system fields
+        all_fields = [field.name for field in instance._meta.fields]
+        fields = [field for field in all_fields if field.lower() not in SYSTEM_FIELDS]
     
     for field_name in fields:
+        # Skip system fields
+        if field_name.lower() in SYSTEM_FIELDS:
+            continue
+            
+        # Skip fields that look like system IDs
+        if field_name.endswith('_id') and field_name != 'customer_id':  # Allow business IDs
+            continue
+            
         if hasattr(instance, field_name):
             value = getattr(instance, field_name)
             
+            # Skip None or empty values
+            if value is None or value == '':
+                continue
+            
             # Handle special field types
-            if hasattr(value, 'pk'):  # Foreign key or related object
+            if isinstance(value, uuid.UUID):
+                data[field_name] = str(value)
+            elif isinstance(value, Decimal):
+                data[field_name] = float(value)
+            elif isinstance(value, (date, datetime)):
+                data[field_name] = value.isoformat()
+            elif hasattr(value, 'pk'):  # Foreign key or related object
                 data[field_name] = str(value)
             elif hasattr(value, 'isoformat'):  # DateTime field
                 data[field_name] = value.isoformat()
             else:
-                data[field_name] = value
+                # For other types, try to convert to string if not JSON serializable
+                try:
+                    json.dumps(value)
+                    data[field_name] = value
+                except (TypeError, ValueError):
+                    data[field_name] = str(value)
     
     return data
 

@@ -25,6 +25,7 @@ from .serializers import (
     RouteSerializer, RouteVisitSerializer, SalesOrderSerializer,
     RouteLocationPingSerializer, CustomerSerializer
 )
+from audit.signals import AuditContext
 
 
 # Sales Order Report API
@@ -80,7 +81,14 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(company=self.request.user.company, created_by=self.request.user)
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save(company=self.request.user.company, created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save()
 
     @action(detail=True, methods=["get"])
     def profit(self, request, pk=None):
@@ -142,7 +150,14 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         return super().get_queryset().filter(company=self.request.user.company)
 
     def perform_create(self, serializer):
-        serializer.save(company=self.request.user.company)
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save(company=self.request.user.company)
+
+    def perform_update(self, serializer):
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save()
     
     
 class InvoiceViewSet(viewsets.ModelViewSet):
@@ -160,7 +175,14 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(company=self.request.user.company)
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save(company=self.request.user.company)
+
+    def perform_update(self, serializer):
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save()
 
     def has_write_access(self):
         """Check if the current user has write access to invoices"""
@@ -257,7 +279,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(company=self.request.user.company)
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save(company=self.request.user.company)
+
+    def perform_update(self, serializer):
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save()
 
     def has_write_access(self):
         """Check if the current user has write access to payments"""
@@ -300,7 +329,14 @@ class RouteViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(company=self.request.user.company)
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save(company=self.request.user.company)
+
+    def perform_update(self, serializer):
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save()
 
     @action(detail=True, methods=["get"])
     def visits(self, request, pk=None):
@@ -349,7 +385,14 @@ class RouteVisitViewSet(viewsets.ModelViewSet):
         return qs.select_related('route', 'customer').prefetch_related('sales_orders')
 
     def perform_create(self, serializer):
-        serializer.save(company=self.request.user.company)
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save(company=self.request.user.company)
+
+    def perform_update(self, serializer):
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save()
 
     @action(detail=True, methods=['post'])
     def check_in(self, request, pk=None):
@@ -536,7 +579,14 @@ class RouteLocationPingViewSet(viewsets.ModelViewSet):
         return qs.order_by('-created_at')
 
     def perform_create(self, serializer):
-        serializer.save(company=self.request.user.company)
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save(company=self.request.user.company)
+
+    def perform_update(self, serializer):
+        # Ensure current user is set for audit logging
+        with AuditContext(self.request.user):
+            serializer.save()
 
     @action(detail=False, methods=['get'])
     def route_summary(self, request):
