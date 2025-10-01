@@ -5,20 +5,20 @@ import { FiMapPin, FiMail, FiPhone, FiDollarSign, FiCalendar, FiCheckCircle, FiT
 
 const CustomerInfoCard = ({ customer, showViewMore = true }) => {
   const navigate = useNavigate();
-
+  console.log(customer);
   if (!customer) return null;
 
-  const getLocationStatus = () => {
-    if (customer.location_verified) {
-      return { text: 'Verified', color: 'green', icon: <FiCheckCircle className="h-4 w-4" /> };
-    } else if (customer.lat && customer.lon) {
-      return { text: 'Coordinates Set', color: 'blue', icon: <FiTarget className="h-4 w-4" /> };
-    } else {
-      return { text: 'No Location', color: 'gray', icon: <FiMapPin className="h-4 w-4" /> };
-    }
-  };
+  // const getLocationStatus = () => {
+  //   if (customer.location_verified) {
+  //     return { text: 'Verified', color: 'green', icon: <FiCheckCircle className="h-4 w-4" /> };
+  //   } else if (customer.lat && customer.lon) {
+  //     return { text: 'Coordinates Set', color: 'blue', icon: <FiTarget className="h-4 w-4" /> };
+  //   } else {
+  //     return { text: 'No Location', color: 'gray', icon: <FiMapPin className="h-4 w-4" /> };
+  //   }
+  // };
 
-  const locationStatus = getLocationStatus();
+  // const locationStatus = getLocationStatus();
 
   const handleViewMore = () => {
     navigate(`/customers/${customer.id}`);
@@ -60,20 +60,20 @@ const CustomerInfoCard = ({ customer, showViewMore = true }) => {
             </div>
           )}
           
-          <div>
+          {/* <div>
             <label className="block text-sm font-medium text-gray-600">Credit Limit</label>
             <p className="mt-1 text-sm text-gray-900">₹{parseFloat(customer.credit_limit || 0).toFixed(2)}</p>
-          </div>
+          </div> */}
           
-          <div>
+          {/* <div>
             <label className="block text-sm font-medium text-gray-600">Current Balance</label>
             <p className="mt-1 text-sm text-gray-900">₹{parseFloat(customer.current_balance || 0).toFixed(2)}</p>
-          </div>
+          </div> */}
           
           <div>
             <label className="block text-sm font-medium text-gray-600">Member Since</label>
             <p className="mt-1 text-sm text-gray-900">
-              {new Date(customer.created_at).toLocaleDateString()}
+              {customer.date}
             </p>
           </div>
         </div>
@@ -81,7 +81,7 @@ const CustomerInfoCard = ({ customer, showViewMore = true }) => {
 
       {/* Location Information */}
       <div className="bg-gray-50 p-6 rounded-lg">
-        <div className="flex items-center justify-between mb-4">
+        {/* <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Location Information</h3>
           <div className="flex items-center gap-2">
             {locationStatus.icon}
@@ -92,7 +92,7 @@ const CustomerInfoCard = ({ customer, showViewMore = true }) => {
               {locationStatus.text}
             </span>
           </div>
-        </div>
+        </div> */}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {customer.address && (

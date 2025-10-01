@@ -8,7 +8,7 @@ import {
     deleteSalesOrder,
 } from '../redux/salesOrdersSlice';
 import { fetchProducts } from '../redux/productsSlice';
-import { fetchCustomers } from '../redux/customersSlice';
+import api from '../services/api';
 import PageHeader from '../components/layout/PageHeader';
 import StatsCard from '../components/ui/StatsCard';
 import DataTable from '../components/ui/DataTable';
@@ -29,7 +29,8 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Loader from '../components/Common/Loader';
 
-const SalesOrders = ({type ='admin'}) => {
+const SalesOrders = () => {
+
     const {
         salesOrders,
         loading: salesOrdersLoading
@@ -39,10 +40,13 @@ const SalesOrders = ({type ='admin'}) => {
         loading: productsLoading
     } = useSelector((state) => state.products);
     const {
-        customers,
         loading: customersLoading
     } = useSelector((state) => state.customers);
     const dispatch = useDispatch();
+    
+    // State for customers available for sales
+    const [availableCustomers, setAvailableCustomers] = useState([]);
+    const [loadingAvailableCustomers, setLoadingAvailableCustomers] = useState(false);
     const [salesOrder, setSalesOrder] = useState({
         customer: "",
         // salesperson removed - will be auto-filled from route context
@@ -69,11 +73,29 @@ const SalesOrders = ({type ='admin'}) => {
     // Ref for the form section to enable scrolling
     const formRef = useRef(null);
 
+    // Function to fetch customers available for sales
+    const fetchAvailableCustomers = async () => {
+        setLoadingAvailableCustomers(true);
+        try {
+            const response = await api.get('/main/customers/available_for_sales/');
+            setAvailableCustomers(response.data);
+        } catch (error) {
+            console.error('Error fetching available customers:', error);
+        } finally {
+            setLoadingAvailableCustomers(false);
+        }
+    };
+
     useEffect(() => {
         dispatch(fetchSalesOrders());
         dispatch(fetchProducts());
-        dispatch(fetchCustomers());
+        fetchAvailableCustomers();
     }, [dispatch]);
+
+    // Debug: Log products when they change
+    useEffect(() => {
+        console.log('Products loaded:', products);
+    }, [products]);
 
     // Scroll to form when it's shown
     useEffect(() => {
@@ -88,13 +110,13 @@ const SalesOrders = ({type ='admin'}) => {
     }, [showForm]);
 
     // Show loader if any of the slices are loading
-    if (salesOrdersLoading || productsLoading || customersLoading) {
+    if (salesOrdersLoading || productsLoading || customersLoading || loadingAvailableCustomers) {
         return <Loader />;
     }
 
     // Helper function to get customer name by ID
     const getCustomerName = (customerId) => {
-        const customer = customers.find(c => c.id === customerId);
+        const customer = availableCustomers.find(c => c.id === customerId);
         return customer ? customer.name : `Customer ${customerId}`;
     };
 
@@ -108,9 +130,27 @@ const SalesOrders = ({type ='admin'}) => {
     };
 
     const handleLineItemChange = (index, field, value) => {
-        const updatedLineItems = salesOrder.line_items.map((item, i) =>
-            i === index ? { ...item, [field]: value } : item
-        );
+        console.log('handleLineItemChange called:', { index, field, value });
+        const updatedLineItems = salesOrder.line_items.map((item, i) => {
+            if (i === index) {
+                const updatedItem = { ...item, [field]: value };
+                
+                // If product_id is being changed, auto-fill the unit_price
+                if (field === 'product_id' && value) {
+                    console.log('Product selected, looking for product with id:', value);
+                    console.log('Available products:', products);
+                    const selectedProduct = products.find(p => p.id == value || p.id === parseInt(value));
+                    console.log('Found product:', selectedProduct);
+                    if (selectedProduct && selectedProduct.unit_price) {
+                        console.log('Setting unit_price to:', selectedProduct.unit_price);
+                        updatedItem.unit_price = parseFloat(selectedProduct.unit_price);
+                    }
+                }
+                
+                return updatedItem;
+            }
+            return item;
+        });
         setSalesOrder({ ...salesOrder, line_items: updatedLineItems });
         calculateTotalsForLineItems(updatedLineItems);
     };
@@ -368,7 +408,7 @@ const SalesOrders = ({type ='admin'}) => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <ChartCard title="Revenue Trend (Last 7 Orders)" trend={5.2} trendValue="5.2%" trendLabel="vs last week">
+                    <ChartCard title="Revenue Trend (Last 7 Orders)" >
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={chartData}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -446,7 +486,7 @@ const SalesOrders = ({type ='admin'}) => {
                                         onChange={handleInputChange}
                                     >
                                         <option value="">Select Customer</option>
-                                        {customers.map((customer) => (
+                                        {availableCustomers.map((customer) => (
                                             <option key={customer.id} value={customer.id}>
                                                 {customer.name}
                                             </option>

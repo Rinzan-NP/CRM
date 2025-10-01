@@ -2,3 +2,5 @@
 *.pyc
 Server/.env
 Frontend/.env
+.cursor/
+.vscode/

@@ -1,11 +1,10 @@
-from django.urls import include, path
-from rest_framework.routers import DefaultRouter
-from audit.views import AuditLogViewSet
+from django.urls import path
+from . import views
 
-router = DefaultRouter()
-router.register(r"logs", AuditLogViewSet)
+app_name = 'audit'
 
 urlpatterns = [
-    path("", include(router.urls)),
-    
+    path('logs/', views.AuditLogListView.as_view(), name='audit_logs'),
+    path('logs/<int:pk>/', views.AuditLogDetailView.as_view(), name='audit_log_detail'),
 ]
+

@@ -11,6 +11,7 @@ import {
   FiMapPin,
   FiActivity,
   FiBarChart2,
+  FiCreditCard,
   FiX,
   FiChevronDown,
   FiChevronRight,
@@ -40,6 +41,7 @@ const navigationGroups = [
       { label: "Purchase Orders", to: "/transactions/purchase-orders", icon: FiFileText, roles: ["admin", "accountant"] },
       { label: "Invoices", to: "/transactions/invoices", icon: FiDollarSign, roles: ["admin", "accountant"] },
       { label: "Payments", to: "/transactions/payments", icon: FiDollarSign, roles: ["admin", "accountant"] },
+      { label: "Credit", to: "/credits", icon: FiCreditCard, roles: ["admin", "accountant"] },
     ]
   },
   {

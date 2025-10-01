@@ -4,6 +4,7 @@ import NotFound from "../pages/NotFound";
 import PrivateRouter from "./PrivateRouter";
 import PublicRouter from "./PublicRouter";
 import { path } from "framer-motion/client";
+import CreditListingPage from "../pages/Credit";
 
 // Lazy load components for better performance
 const LoginScreen = lazy(() => import("../pages/Login"));
@@ -22,7 +23,7 @@ const AuditLogs = lazy(() => import("../pages/AuditLogs")); // Fixed typo: Audit
 const Reports = lazy(() => import("../pages/Reports"));
 const CustomerDetail = lazy(() => import("../pages/CustomerDetail")); // Added CustomerDetail page
 const Users = lazy(() => import("../pages/UserManagement")); // Added Users page
-
+const Credit = lazy(() => import("../pages/Credit"))
 // Loading component for suspense fallback
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -140,7 +141,13 @@ const routeConfig = [
     path: "/reports",
     component: Reports,
     isPrivate: true
+  },
+  {
+    path:"/credits",
+    component : Credit,
+    isPrivate : true,
   }
+
 ];
 
 const MainRouter = () => {

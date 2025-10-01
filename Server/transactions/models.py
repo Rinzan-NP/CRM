@@ -1,11 +1,13 @@
 from decimal import Decimal
 from django.db import models
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
 
 # Create your models here.
 # transactions/models.py
 from django.db import models
 from django.conf import settings
-from main.models import BaseModel, Customer, Product, VATSettings,Company
+from main.models import BaseModel, Credit, Customer, Product, VATSettings,Company
 from accounts.models import User
 
 
@@ -31,6 +33,7 @@ class SalesOrder(BaseModel):
     # When true, unit prices entered on line items are VAT-inclusive (gross)
     prices_include_vat = models.BooleanField(default=False)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_sales_orders')
+    gone_for_delivery = models.BooleanField(default=False)
     class Meta:
         indexes = [
             models.Index(fields=["customer", "status"]),
@@ -219,7 +222,7 @@ class Invoice(BaseModel):
     sales_order = models.OneToOneField(SalesOrder, on_delete=models.CASCADE, related_name="invoice")
     invoice_no  = models.CharField(max_length=50, blank=True)
     issue_date  = models.DateField()
-    due_date    = models.DateField()
+    due_date    = models.DateField(help_text="Due date from frontend - used as credit expiry date")
     amount_due  = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)  # = SO.grand_total
     paid_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     status      = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
@@ -236,37 +239,62 @@ class Invoice(BaseModel):
 
     @property
     def outstanding(self):
-        """Calculate outstanding amount"""
-        return max(Decimal(self.amount_due) - Decimal(self.paid_amount), Decimal('0.00'))
+        """Calculate outstanding amount considering credit system"""
+        try:
+            credit = self.credits
+            # If credit exists, outstanding amount is the credit's remaining amount
+            credit_amount = Decimal(str(credit.amount))
+            paid_amount = Decimal(str(credit.payed_amount or 0))
+            return max(credit_amount - paid_amount, Decimal('0.00'))
+        except Credit.DoesNotExist:
+            # No credit, use traditional invoice payment logic
+            return max(Decimal(self.amount_due) - Decimal(self.paid_amount), Decimal('0.00'))
 
     def update_payment_status(self):
-        """Update paid_amount and status based on all payments"""
-        # Force refresh from database to get latest payments
+        """Update paid_amount and status based on credit system"""
+        # Force refresh from database to get latest data
         self.refresh_from_db()
         
-        total_paid = self.payments.aggregate(
-            total=models.Sum('amount')
-        )['total'] or Decimal('0.00')
-        
-        # Ensure we're working with Decimal objects
-        total_paid = Decimal(str(total_paid))
-        amount_due = Decimal(str(self.amount_due))
-        
-        self.paid_amount = total_paid
-        
-        # Update status based on payment amount
-        if total_paid >= amount_due:
-            self.status = "paid"
-        elif total_paid > 0:
-            self.status = "sent"  # Partially paid
-        else:
-            self.status = "sent"  # No payments yet
+        try:
+            credit = self.credits
+            # Use credit system for status calculation
+            credit_amount = Decimal(str(credit.amount))
+            paid_amount = Decimal(str(credit.payed_amount or 0))
+            credit_remaining = credit_amount - paid_amount
+            
+            if credit_remaining <= 0:
+                self.status = "paid"
+                self.paid_amount = self.amount_due  # Full amount is considered paid
+            elif paid_amount > 0:
+                self.status = "sent"  # Partially paid through credit
+                self.paid_amount = paid_amount
+            else:
+                self.status = "sent"  # Credit granted but no payments yet
+                self.paid_amount = Decimal('0.00')
+                
+        except Credit.DoesNotExist:
+            # No credit system - use traditional payment logic
+            total_paid = self.payments.aggregate(
+                total=models.Sum('amount')
+            )['total'] or Decimal('0.00')
+            
+            total_paid = Decimal(str(total_paid))
+            amount_due = Decimal(str(self.amount_due))
+            
+            self.paid_amount = total_paid
+            
+            if total_paid >= amount_due:
+                self.status = "paid"
+            elif total_paid > 0:
+                self.status = "sent"
+            else:
+                self.status = "draft"
         
         # Save the updated invoice
         self.save(update_fields=['paid_amount', 'status'])
         
         # Debug logging
-        print(f"Invoice {self.invoice_no}: amount_due={amount_due}, total_paid={total_paid}, status={self.status}")
+        print(f"Invoice {self.invoice_no}: amount_due={self.amount_due}, paid_amount={self.paid_amount}, status={self.status}")
         
     def save(self, *args, **kwargs):
         from datetime import datetime
@@ -283,7 +311,41 @@ class Invoice(BaseModel):
         # Set amount_due from sales order if not set
         if not self.amount_due and self.sales_order:
             self.amount_due = self.sales_order.grand_total
+            
+        # Create credit when invoice is generated (customer gets credit)
         super().save(*args, **kwargs)
+        
+        # Create credit for the customer when invoice is generated
+        # Import Credit model first
+        from main.models import Credit
+        
+        # Check if credit already exists for this invoice
+        try:
+            existing_credit = self.credits
+        except Credit.DoesNotExist:
+            existing_credit = None
+            
+        if existing_credit is None:
+            customer = self.sales_order.customer
+            
+            # Use due_date as credit expiry date, or fallback to customer's default
+            if self.due_date:
+                from django.utils import timezone
+                from datetime import datetime, time
+                # Convert due_date to datetime with end of day
+                expiry_date = timezone.make_aware(
+                    datetime.combine(self.due_date, time.max)
+                )
+            else:
+                from django.utils import timezone
+                from datetime import timedelta
+                expiry_date = timezone.now() + timedelta(days=customer.credit_expire_days)
+            
+            Credit.objects.create(
+                invoice=self,
+                amount=self.amount_due,
+                expired_at=expiry_date
+            )
 
 
 class Payment(BaseModel):
@@ -293,28 +355,7 @@ class Payment(BaseModel):
     mode    = models.CharField(max_length=30, choices=[("cash", "Cash"), ("bank", "Bank")])
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='payments')
 
-    def save(self, *args, **kwargs):
-        is_new = self.pk is None
-        old_amount = None
-        if not is_new:
-            try:
-                old_payment = Payment.objects.get(pk=self.pk)
-                old_amount = old_payment.amount
-            except Payment.DoesNotExist:
-                pass
-        
-        super().save(*args, **kwargs)
-        
-        # Always update invoice status after saving the payment
-        # This handles both new payments and updates
-        self.invoice.update_payment_status()
-    
-    def delete(self, *args, **kwargs):
-        invoice = self.invoice
-        super().delete(*args, **kwargs)
-        # Update invoice status after deleting payment
-        invoice.update_payment_status()
-        
+                
         
 class Route(BaseModel):
     # Human-readable ID for display
@@ -337,7 +378,6 @@ class Route(BaseModel):
 
     def save(self, *args, **kwargs):
         if not self.route_number:
-            # Generate route number if not provided
             from datetime import datetime
             timestamp = datetime.now().strftime('%Y%m%d')
             # Get count of routes for today
@@ -370,6 +410,14 @@ class RouteVisit(BaseModel):
     visit_duration_minutes = models.IntegerField(null=True, blank=True)
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='route_visits')
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        
+        # After saving, update all associated sales orders to gone_for_delivery = True
+        for sales_order in self.sales_orders.all():
+            sales_order.gone_for_delivery = True
+            sales_order.save(update_fields=['gone_for_delivery'])
+
 class RouteLocationPing(BaseModel):
     """Live GPS pings during a route visit"""
     route = models.ForeignKey(Route, related_name="location_pings", on_delete=models.CASCADE)
@@ -385,3 +433,71 @@ class RouteLocationPing(BaseModel):
         indexes = [
             models.Index(fields=["route", "created_at"]),
         ]
+
+
+# Signal handlers for Payment model
+@receiver(post_save, sender=Payment)
+def update_credit_on_payment_save(sender, instance, created, **kwargs):
+    """Update credit when payment is created or updated"""
+    print(f"DEBUG: Payment signal triggered - created: {created}, amount: {instance.amount}")
+    
+    try:
+        credit = instance.invoice.credits
+        print(f"DEBUG: Found credit with current payed_amount: {credit.payed_amount}")
+        
+        if created:
+            # New payment - add to payed_amount
+            current_payed = credit.payed_amount or 0
+            credit.payed_amount = current_payed + instance.amount
+            print(f"DEBUG: Added {instance.amount} to payed_amount: {current_payed} -> {credit.payed_amount}")
+        else:
+            # Updated payment - recalculate total from all payments
+            total_payments = instance.invoice.payments.aggregate(
+                total=models.Sum('amount')
+            )['total'] or 0
+            credit.payed_amount = total_payments
+            print(f"DEBUG: Recalculated payed_amount from all payments: {credit.payed_amount}")
+        
+        credit.save()
+        print(f"DEBUG: Credit updated successfully")
+        
+        # Update invoice status
+        instance.invoice.update_payment_status()
+        
+    except Credit.DoesNotExist:
+        print(f"DEBUG: No credit found for invoice {instance.invoice.invoice_no}")
+        # Create credit if it doesn't exist
+        from django.utils import timezone
+        from datetime import timedelta
+        customer = instance.invoice.sales_order.customer
+        expiry_date = timezone.now() + timedelta(days=customer.credit_expire_days)
+        
+        Credit.objects.create(
+            invoice=instance.invoice,
+            amount=instance.invoice.amount_due,
+            expired_at=expiry_date,
+            payed_amount=instance.amount
+        )
+        print(f"DEBUG: Created new credit with payed_amount: {instance.amount}")
+
+
+@receiver(post_delete, sender=Payment)
+def update_credit_on_payment_delete(sender, instance, **kwargs):
+    """Update credit when payment is deleted"""
+    print(f"DEBUG: Payment delete signal triggered for amount: {instance.amount}")
+    
+    try:
+        credit = instance.invoice.credits
+        # Recalculate total from remaining payments
+        total_payments = instance.invoice.payments.aggregate(
+            total=models.Sum('amount')
+        )['total'] or 0
+        credit.payed_amount = total_payments
+        credit.save()
+        print(f"DEBUG: Credit updated after payment deletion: {credit.payed_amount}")
+        
+        # Update invoice status
+        instance.invoice.update_payment_status()
+        
+    except Credit.DoesNotExist:
+        print(f"DEBUG: No credit found for deleted payment")

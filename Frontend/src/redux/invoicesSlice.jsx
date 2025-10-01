@@ -14,6 +14,32 @@ export const fetchInvoices = createAsyncThunk(
   }
 );
 
+export const fetchAvailableSalesOrders = createAsyncThunk(
+  'invoices/fetchAvailableSalesOrders',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/transactions/invoices/available_sales_orders/');
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+export const fetchSalesOrderDetails = createAsyncThunk(
+  'invoices/fetchSalesOrderDetails',
+  async (salesOrderId, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/transactions/sales-orders/${salesOrderId}/`);
+      console.table(response.data);
+      
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
 export const createInvoice = createAsyncThunk(
   'invoices/createInvoice',
   async (invoice, { rejectWithValue }) => {
@@ -54,12 +80,15 @@ const invoicesSlice = createSlice({
   name: 'invoices',
   initialState: {
     invoices: [],
+    availableSalesOrders: [],
+    salesOrderDetails: null,
     loading: false,
     error: null,
   },
   reducers: {},
   extraReducers: (builder) => {
     builder
+      // Handle fetchInvoices
       .addCase(fetchInvoices.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -72,9 +101,41 @@ const invoicesSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
+      // Handle fetchAvailableSalesOrders
+      .addCase(fetchAvailableSalesOrders.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchAvailableSalesOrders.fulfilled, (state, action) => {
+        state.loading = false;
+        state.availableSalesOrders = action.payload;
+      })
+      .addCase(fetchAvailableSalesOrders.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Handle fetchSalesOrderDetails
+      .addCase(fetchSalesOrderDetails.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchSalesOrderDetails.fulfilled, (state, action) => {
+        state.loading = false;
+        state.salesOrderDetails = action.payload;
+      })
+      .addCase(fetchSalesOrderDetails.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Handle createInvoice
       .addCase(createInvoice.fulfilled, (state, action) => {
         state.invoices.push(action.payload);
+        // Remove the sales order from available orders after creating invoice
+        state.availableSalesOrders = state.availableSalesOrders.filter(
+          order => order.id !== action.payload.sales_order
+        );
       })
+      // Handle updateInvoice
       .addCase(updateInvoice.fulfilled, (state, action) => {
         const index = state.invoices.findIndex((invoice) => invoice.id === action.payload.id);
         if (index !== -1) {

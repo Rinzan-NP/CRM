@@ -1,37 +1,50 @@
 // src/pages/Invoices.js
 import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchInvoices, createInvoice, updateInvoice, deleteInvoice } from '../redux/invoicesSlice';
-import { fetchSalesOrders } from '../redux/salesOrdersSlice';
+import { 
+  fetchInvoices, 
+  createInvoice, 
+  deleteInvoice,
+  fetchAvailableSalesOrders 
+} from '../redux/invoicesSlice';
 import PageHeader from '../components/layout/PageHeader';
 import StatsCard from '../components/ui/StatsCard';
 import DataTable from '../components/ui/DataTable';
 import FormField from '../components/ui/FormField';
 import ChartCard from '../components/ui/ChartCard';
 import Modal from '../components/Common/Modal';
-import { FileText, DollarSign, Plus, Edit, Trash2, Loader2 } from 'lucide-react';
+import EditInvoiceModal from '../components/Invoices/EditInvoiceModal';
+import { FileText, DollarSign, Plus, Edit, Trash2, Loader2, Printer } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Loader from '../components/Common/Loader';
 
 const Invoices = () => {
-  const { invoices } = useSelector((state) => state.invoices);
-  const { salesOrders, loading: loadingSalesOrders } = useSelector((state) => state.salesOrders);
+  const { invoices, availableSalesOrders, loading: stateLoading } = useSelector((state) => state.invoices);
   const dispatch = useDispatch();
   const [invoice, setInvoice] = useState({
     sales_order: '',
-    issue_date: '',
-    due_date: '',
+    issue_date: new Date().toISOString().split('T')[0],
+    due_date: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0], // 30 days from now
   });
-  const [editMode, setEditMode] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [showModal, setShowModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    dispatch(fetchInvoices()).finally(() => setLoading(false));
-    dispatch(fetchSalesOrders()).finally(() => setLoading(false));
+    Promise.all([
+      dispatch(fetchInvoices()),
+      dispatch(fetchAvailableSalesOrders())
+    ]).finally(() => setLoading(false));
   }, [dispatch]);
+
+  // Refresh available sales orders when create modal is opened
+  useEffect(() => {
+    if (showCreateModal) {
+      dispatch(fetchAvailableSalesOrders());
+    }
+  }, [showCreateModal, dispatch]);
   if(loading){
     return <Loader />
   }
@@ -47,15 +60,7 @@ const Invoices = () => {
     await dispatch(createInvoice(invoice));
     setLoading(false);
     resetForm();
-    setShowModal(false);
-  };
-
-  const handleUpdateInvoice = async (e) => {
-    e.preventDefault();
-    
-    await dispatch(updateInvoice({ id: editId, ...invoice }));
-    resetForm();
-    setShowModal(false);
+    setShowCreateModal(false);
   };
 
   const handleDeleteInvoice = async (id) => {
@@ -63,30 +68,168 @@ const Invoices = () => {
   };
 
   const handleEditInvoice = (row) => {
-    setEditMode(true);
-    setEditId(row.id);
-    setInvoice({
-      sales_order: row.sales_order,
-      issue_date: row.issue_date,
-      due_date: row.due_date,
-    });
-    setShowModal(true);
+    setSelectedInvoice(row);
+    setShowEditModal(true);
+  };
+
+  const handlePrintInvoice = (row) => {
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    
+    // Get the selected sales order details
+    const selectedOrder = availableSalesOrders.find(order => order.id === row.sales_order);
+    
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Invoice - ${row?.invoice_no || 'N/A'}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+              background: white;
+            }
+            .invoice-header {
+              text-align: center;
+              border-bottom: 2px solid #333;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            .invoice-title {
+              font-size: 28px;
+              font-weight: bold;
+              color: #333;
+              margin-bottom: 10px;
+            }
+            .invoice-number {
+              font-size: 18px;
+              color: #666;
+            }
+            .invoice-details {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 30px;
+            }
+            .invoice-section {
+              flex: 1;
+              margin-right: 20px;
+            }
+            .invoice-section h3 {
+              margin: 0 0 10px 0;
+              color: #333;
+              font-size: 16px;
+            }
+            .invoice-section p {
+              margin: 5px 0;
+              color: #666;
+            }
+            .order-details {
+              background: #f8f9fa;
+              padding: 15px;
+              border-radius: 5px;
+              margin: 20px 0;
+            }
+            .order-details h4 {
+              margin: 0 0 10px 0;
+              color: #333;
+            }
+            .amount-section {
+              text-align: right;
+              margin-top: 30px;
+              padding-top: 20px;
+              border-top: 1px solid #ddd;
+            }
+            .amount-row {
+              display: flex;
+              justify-content: space-between;
+              margin: 10px 0;
+            }
+            .total-amount {
+              font-size: 18px;
+              font-weight: bold;
+              color: #333;
+            }
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="invoice-header">
+            <div class="invoice-title">INVOICE</div>
+            <div class="invoice-number">Invoice #: ${row?.invoice_no || 'N/A'}</div>
+          </div>
+          
+          <div class="invoice-details">
+            <div class="invoice-section">
+              <h3>Invoice Details</h3>
+              <p><strong>Issue Date:</strong> ${row.issue_date ? new Date(row.issue_date).toLocaleDateString() : 'N/A'}</p>
+              <p><strong>Due Date:</strong> ${row.due_date ? new Date(row.due_date).toLocaleDateString() : 'N/A'}</p>
+              <p><strong>Status:</strong> ${row?.status || 'Pending'}</p>
+            </div>
+            
+            ${selectedOrder ? `
+            <div class="invoice-section">
+              <h3>Order Details</h3>
+              <p><strong>Order Number:</strong> ${selectedOrder.order_number}</p>
+              <p><strong>Order Date:</strong> ${new Date(selectedOrder.order_date).toLocaleDateString()}</p>
+              <p><strong>Customer:</strong> ${selectedOrder.customer_name || 'N/A'}</p>
+            </div>
+            ` : ''}
+          </div>
+          
+          ${selectedOrder ? `
+          <div class="order-details">
+            <h4>Order Summary</h4>
+            <p><strong>Subtotal:</strong> AED ${parseFloat(selectedOrder.subtotal || 0).toFixed(2)}</p>
+            <p><strong>Tax:</strong> AED ${parseFloat(selectedOrder.tax_amount || 0).toFixed(2)}</p>
+            <p><strong>Total:</strong> AED ${parseFloat(selectedOrder.grand_total || 0).toFixed(2)}</p>
+          </div>
+          ` : ''}
+          
+          <div class="amount-section">
+            <div class="amount-row">
+              <span>Amount Due:</span>
+              <span>AED ${parseFloat(row?.outstanding || 0).toFixed(2)}</span>
+            </div>
+            <div class="amount-row">
+              <span>Amount Paid:</span>
+              <span>AED ${parseFloat(row?.paid_amount || 0).toFixed(2)}</span>
+            </div>
+            <div class="amount-row total-amount">
+              <span>Total Amount:</span>
+              <span>AED ${(parseFloat(row?.outstanding || 0) + parseFloat(row?.paid_amount || 0)).toFixed(2)}</span>
+            </div>
+          </div>
+          
+          <div class="no-print" style="margin-top: 30px; text-align: center;">
+            <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">Print Invoice</button>
+            <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Close</button>
+          </div>
+        </body>
+      </html>
+    `;
+    
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
   };
 
   const resetForm = () => {
-    setEditMode(false);
-    setEditId(null);
     setInvoice({
       sales_order: '',
-      issue_date: '',
-      due_date: '',
+      issue_date: new Date().toISOString().split('T')[0],
+      due_date: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
     });
   };
 
   const getOrderDisplay = (orderId) => {
-    const so = salesOrders.find(o => o.id === orderId);
+    const so = availableSalesOrders.find(o => o.id === orderId);
     if (!so) return `Order ${orderId}`;
-    return `${so.order_number || so.id}`;
+    return `${so.order_number} - ${formatCurrency(so.grand_total)}`;
   };
 
   const formatCurrency = (value) => {
@@ -154,12 +297,21 @@ const Invoices = () => {
           <button
             onClick={() => handleEditInvoice(row)}
             className="p-1 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+            title="Edit Invoice"
           >
             <Edit className="h-4 w-4" />
           </button>
           <button
+            onClick={() => handlePrintInvoice(row)}
+            className="p-1 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded"
+            title="Print Invoice"
+          >
+            <Printer className="h-4 w-4" />
+          </button>
+          <button
             onClick={() => handleDeleteInvoice(row.id)}
             className="p-1 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded"
+            title="Delete Invoice"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -180,7 +332,7 @@ const Invoices = () => {
           actions={[
             <button
               key="add"
-              onClick={() => { resetForm(); setShowModal(true); }}
+              onClick={() => { resetForm(); setShowCreateModal(true); }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
             >
               <Plus className="h-4 w-4" />
@@ -214,13 +366,14 @@ const Invoices = () => {
        
         </div>
 
+        {/* Create Invoice Modal */}
         <Modal 
-          isOpen={showModal} 
-          onClose={() => setShowModal(false)}
-          title={editMode ? 'Edit Invoice' : 'Create New Invoice'}
+          isOpen={showCreateModal} 
+          onClose={() => setShowCreateModal(false)}
+          title="Create New Invoice"
         >
-          <form onSubmit={editMode ? handleUpdateInvoice : handleCreateInvoice} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <form onSubmit={handleCreateInvoice} className="space-y-6">
+            <div className="grid grid-cols-1 gap-6">
               <FormField label="Sales Order" required>
                 <select
                   name="sales_order"
@@ -230,17 +383,32 @@ const Invoices = () => {
                   onChange={handleInputChange}
                 >
                   <option value="">Select Sales Order</option>
-                  {loadingSalesOrders ? (
+                  {stateLoading ? (
                     <option value="">Loading...</option>
                   ) : (
-                    salesOrders.map((salesOrder) => (
-                      <option key={salesOrder.id} value={salesOrder.id}>
-                        {salesOrder.order_number || salesOrder.id}
+                    availableSalesOrders.map((order) => (
+                      <option key={order.id} value={order.id}>
+                        {`${order.order_number} -  ${formatCurrency(order.grand_total)} AED`}
                       </option>
                     ))
                   )}
                 </select>
               </FormField>
+              
+              {invoice.sales_order && (
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium text-gray-900">Order Details</h4>
+                  {availableSalesOrders
+                    .filter(order => order.id === invoice.sales_order)
+                    .map(order => (
+                      <div key={order.id} className="mt-2 space-y-2 text-sm text-gray-600">
+                        <p><span className="font-medium">Order Number:</span> {order.order_number}</p>
+                        <p><span className="font-medium">Order Date:</span> {new Date(order.order_date).toLocaleDateString()}</p>
+                        <p><span className="font-medium">Amount:</span> {formatCurrency(order.grand_total)} AED</p>
+                      </div>
+                    ))}
+                </div>
+              )}
 
               <FormField label="Issue Date" required>
                 <input
@@ -268,7 +436,7 @@ const Invoices = () => {
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setShowModal(false)}
+                onClick={() => setShowCreateModal(false)}
                 className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 Cancel
@@ -277,11 +445,22 @@ const Invoices = () => {
                 type="submit"
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
               >
-                {editMode ? 'Update Invoice' : 'Create Invoice'}
+                Create Invoice
               </button>
             </div>
           </form>
         </Modal>
+
+        {/* Edit Invoice Modal */}
+        <EditInvoiceModal
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          invoice={selectedInvoice}
+          onUpdate={() => {
+            // Refresh the invoices list after update
+            dispatch(fetchInvoices());
+          }}
+        />
 
         <DataTable
           data={invoices}

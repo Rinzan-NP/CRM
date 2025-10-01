@@ -1,11 +1,23 @@
 from rest_framework import serializers
-from audit.models import AuditLog
+from .models import AuditLog
+
 
 class AuditLogSerializer(serializers.ModelSerializer):
-    # Add user details instead of just the foreign key
-    user_email = serializers.CharField(source='user.email', read_only=True)
-    user_role = serializers.CharField(source='user.role', read_only=True)
+    """
+    Serializer for AuditLog model with formatted data display.
+    """
+    performed_by_username = serializers.CharField(source='performed_by.username', read_only=True)
+    performed_by_email = serializers.CharField(source='performed_by.email', read_only=True)
+    formatted_before_data = serializers.ReadOnlyField()
+    formatted_after_data = serializers.ReadOnlyField()
     
     class Meta:
         model = AuditLog
-        fields = ['id', 'user', 'user_email', 'user_role', 'action', 'model_name', 'object_id', 'timestamp', 'changes']
+        fields = [
+            'id', 'model_name', 'record_number', 'action', 
+            'performed_by', 'performed_by_username', 'performed_by_email',
+            'before_data', 'after_data', 'formatted_before_data', 
+            'formatted_after_data', 'timestamp'
+        ]
+        read_only_fields = ['id', 'timestamp']
+

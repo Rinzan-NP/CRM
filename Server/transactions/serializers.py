@@ -22,15 +22,22 @@ class SalesOrderSerializer(serializers.ModelSerializer):
     line_items = OrderLineItemSerializer(many=True, read_only=False)
     salesperson = serializers.SerializerMethodField()  # Get from route visit context
     company_name = serializers.CharField(source="company.name", read_only=True)
+    customer_name = serializers.CharField(source="customer.name", read_only=True)
 
+
+    has_invoice = serializers.SerializerMethodField()
 
     class Meta:
         model = SalesOrder
         fields = [
             'id', 'order_number', 'customer', 'salesperson', 'order_date', 'status',
-            'subtotal', 'vat_total', 'grand_total', 'profit', 'prices_include_vat', 'line_items', 'company_name'
+            'subtotal', 'vat_total', 'grand_total', 'profit', 'prices_include_vat', 'line_items', 'company_name',
+            'has_invoice', 'customer_name'
         ]
-        read_only_fields = ['subtotal', 'vat_total', 'grand_total', 'profit', 'salesperson', 'order_number', 'company_name']
+        read_only_fields = ['subtotal', 'vat_total', 'grand_total', 'profit', 'salesperson', 'order_number', 'company_name', 'customer_name']
+
+    def get_has_invoice(self, obj):
+        return hasattr(obj, 'invoice')
 
     def get_salesperson(self, obj):
         """Get salesperson from route visit context"""
@@ -158,12 +165,13 @@ class InvoiceSerializer(serializers.ModelSerializer):
     outstanding = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     customer_name = serializers.SerializerMethodField(read_only=True)
     company_name = serializers.CharField(source="company.name", read_only=True)
+    sales_order_details = SalesOrderSerializer(read_only=True)
     
     class Meta:
         model = Invoice
         fields = [
             'id', 'sales_order', 'invoice_no', 'issue_date', 'due_date',
-            'amount_due', 'paid_amount', 'outstanding', 'status', 'payments', 'customer_name', 'company_name'
+            'amount_due', 'paid_amount', 'outstanding', 'status', 'payments', 'customer_name', 'company_name', 'sales_order_details'
         ]
         read_only_fields = ['paid_amount', 'status', 'invoice_no', 'company_name']
 
@@ -280,14 +288,15 @@ class RouteSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         
         # Make 'salesperson' read-only for non-admin users
-        if request and request.user.role != 'admin':
+        if request and hasattr(request.user, 'role') and request.user.role != 'admin':
             fields['salesperson'].read_only = True
         return fields
 
     def create(self, validated_data):
         # For non-admin users, set salesperson to current user
-        if self.context['request'].user.role != 'admin':
-            validated_data['salesperson'] = self.context['request'].user
+        request = self.context.get('request')
+        if request and hasattr(request.user, 'role') and request.user.role != 'admin':
+            validated_data['salesperson'] = request.user
         return super().create(validated_data)   
 
 
@@ -306,7 +315,7 @@ class RouteLocationPingSerializer(serializers.ModelSerializer):
         model = RouteLocationPing
         fields = [
             'id', 'route', 'visit', 'lat', 'lon', 'accuracy_meters',
-            'speed_mps', 'heading_degrees', 'created_at'
+            'speed_mps', 'heading_degrees', 'created_at', 'company_name'
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -343,12 +352,14 @@ class RouteLocationPingSerializer(serializers.ModelSerializer):
 
 class CustomerSerializer(serializers.ModelSerializer):
     order_count = serializers.SerializerMethodField()
+    date = serializers.DateTimeField(source="created_at", read_only=True, format="%d-%m-%Y")
     total_spent = serializers.SerializerMethodField()
 
     class Meta:
         model = Customer
         fields = ['id', 'name', 'email', 'phone', 'address', 
-                 'credit_limit', 'current_balance', 'order_count', 'total_spent']
+                 'current_balance', 'order_count', 'total_spent', 'date']
+        ref_name = 'TransactionCustomerSerializer'
 
     def get_order_count(self, obj):
         

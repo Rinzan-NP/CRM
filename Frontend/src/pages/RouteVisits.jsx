@@ -10,7 +10,7 @@ import {
 } from "../redux/routeVisitsSlice";
 import { fetchRoutes } from "../redux/routesSlice";
 import { fetchCustomers } from "../redux/customersSlice";
-import { fetchSalesOrders } from "../redux/salesOrdersSlice";
+import {  fetchSalesOrdersAvailableRoute as fetchSalesOrders } from "../redux/salesOrdersSlice";
 import { GoogleMapsProvider, GoogleMap, Marker, Autocomplete, defaultMapContainerStyle } from "../components/Common/GoogleMapWrapper";
 import RoadRoutePolyline from "../components/Common/RoadRoutePolyline";
 import PageHeader from '../components/layout/PageHeader';

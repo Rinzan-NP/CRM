@@ -25,7 +25,7 @@ const UsersManagement = () => {
     { value: 'admin', label: 'Admin' },
     { value: 'salesperson', label: 'Salesperson' },
     { value: 'accountant', label: 'Accountant' },
-    { value: 'user', label: 'User' }
+    // { value: 'user', label: 'User' }
   ];
 
   useEffect(() => {

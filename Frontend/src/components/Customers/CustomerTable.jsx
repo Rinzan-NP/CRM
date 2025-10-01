@@ -90,16 +90,7 @@ const CustomerTable = ({ customers, onEdit, onDelete, onView, onGeocode, onSetCo
         );
       },
     },
-    {
-      header: 'Financial',
-      accessor: 'financial',
-      cell: (row) => (
-        <div className="text-sm text-gray-600">
-          <div>Credit: ₹{parseFloat(row.credit_limit || 0).toFixed(2)}</div>
-          <div>Balance: ₹{parseFloat(row.current_balance || 0).toFixed(2)}</div>
-        </div>
-      ),
-    },
+    
     {
       header: 'Actions',
       accessor: 'actions',

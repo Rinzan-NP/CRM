@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Customer, Product, Supplier, VATSettings
+from .models import Credit, Customer, Product, Supplier, VATSettings
 
 class SupplierSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source="company.name", read_only=True)
@@ -35,12 +35,13 @@ class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = [
-            'id', 'name', 'email', 'phone', 'credit_limit', 'address',
+            'id', 'name', 'email', 'phone', 'address', 'credit_expire_days',
             'lat', 'lon', 'city', 'state', 'country', 'postal_code',
             'location_verified', 'has_coordinates', 'location_display',
             'distance_km', 'current_balance', 'created_at', 'updated_at', 'company_name'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+        ref_name = 'MainCustomerSerializer'
 
     
     def validate_lat(self, value):
@@ -99,3 +100,11 @@ class VATSettingsSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
         
     
+class CreditSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source="invoice.customer.name", read_only=True)
+    company_name = serializers.CharField(source="invoice.company.name", read_only=True)
+    
+    class Meta:
+        model = Credit
+        fields = ['id', 'invoice', 'amount', 'expired_at', 'payed_amount', 'customer_name', 'company_name']
+        read_only_fields = ['id', 'customer_name', 'company_name']

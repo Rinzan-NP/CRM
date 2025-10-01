@@ -12,14 +12,33 @@ export default function LoginPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setIsLoading(true);
     setError(null);
     
     try {
-      await dispatch(login({ email, password })).unwrap();
-      navigate('/');
+      const result = await dispatch(login({ email, password })).unwrap();
+      
+      // Role-based routing after successful login
+      const userRole = result.user?.role?.toLowerCase();
+      
+      switch (userRole) {
+        case 'admin':
+          navigate('/');
+          break;
+        case 'accountant':
+          navigate('/reports');
+          break;
+        case 'salesperson':
+          navigate('/transactions/sales-orders');
+          break;
+        default:
+          // Fallback to dashboard for unknown roles
+          navigate('/');
+          break;
+      }
     } catch (error) {
       setError(error.message || 'Login failed. Please check your credentials.');
       console.error('Login failed', error);

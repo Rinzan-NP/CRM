@@ -67,9 +67,16 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset().filter(company=self.request.user.company)
         user = self.request.user
         role = getattr(user, 'role', '')
+        
+        # Filter by salesperson if applicable
         if role == 'salesperson':
-            # Filter by route visits where user is the salesperson
-            return qs.filter(created_by=user)
+            qs = qs.filter(created_by=user)
+        
+        # Check if we should only return orders without invoices
+        no_invoice = self.request.query_params.get('no_invoice', '').lower() == 'true'
+        if no_invoice:
+            return qs.filter(invoice__isnull=True)
+            
         return qs
 
     def perform_create(self, serializer):
@@ -155,6 +162,22 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(company=self.request.user.company)
 
+    def has_write_access(self):
+        """Check if the current user has write access to invoices"""
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        
+        # Admin users have full access
+        if role == 'admin':
+            return True
+        
+        # Salesperson users can only modify invoices from their own routes
+        if role == 'salesperson':
+            return True  # They can modify invoices they have access to via get_queryset filtering
+        
+        # Default to False for unknown roles
+        return False
+
     def update(self, request, *args, **kwargs):
         if not self.has_write_access():
             return Response({'detail': 'Forbidden'}, status=403)
@@ -164,6 +187,26 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         if not self.has_write_access():
             return Response({'detail': 'Forbidden'}, status=403)
         return super().destroy(request, *args, **kwargs)
+
+    @action(detail=False, methods=['get'])
+    def available_sales_orders(self, request):
+        """Get list of sales orders that don't have invoices yet"""
+        user = request.user
+        role = getattr(user, 'role', '')
+        
+        # Start with all sales orders for the company
+        qs = SalesOrder.objects.filter(company=user.company, invoice__isnull=True)
+        
+        # Filter by salesperson if applicable
+        if role == 'salesperson':
+            qs = qs.filter(created_by=user)
+            
+        # Only show confirmed orders that don't have invoices
+        qs = qs.filter(status='confirmed')
+        
+        from .serializers import SalesOrderSerializer
+        serializer = SalesOrderSerializer(qs, many=True)
+        return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
     def refresh_outstanding(self, request, pk=None):
@@ -215,6 +258,22 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(company=self.request.user.company)
+
+    def has_write_access(self):
+        """Check if the current user has write access to payments"""
+        user = self.request.user
+        role = getattr(user, 'role', '')
+        
+        # Admin users have full access
+        if role == 'admin':
+            return True
+        
+        # Salesperson users can only modify payments from their own routes
+        if role == 'salesperson':
+            return True  # They can modify payments they have access to via get_queryset filtering
+        
+        # Default to False for unknown roles
+        return False
 
     def update(self, request, *args, **kwargs):
         if not self.has_write_access():
@@ -1307,3 +1366,10 @@ class CustomerSummaryView(APIView):
             return Response({'detail': str(e)}, status=500)
 
 
+class SalesOrdersAvailableRouteView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        sales_orders = SalesOrder.objects.filter(company=request.user.company, gone_for_delivery=False)
+        serializer = SalesOrderSerializer(sales_orders, many=True)
+        return Response(serializer.data)

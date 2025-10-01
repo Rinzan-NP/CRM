@@ -360,7 +360,7 @@ const PurchaseOrders = () => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <ChartCard title="Supplier Spending Analysis" trend={-2.1} trendValue="2.1%" trendLabel="vs last month">
+                    <ChartCard title="Supplier Spending Analysis" trendLabel="vs last month">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={supplierSpending}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />

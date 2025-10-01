@@ -13,6 +13,17 @@ export const fetchSalesOrders = createAsyncThunk(
     }
   }
 );
+export const fetchSalesOrdersAvailableRoute = createAsyncThunk(
+  'salesOrders/fetchSalesOrdersAvailableRoute',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/transactions/sales-orders/available_for_route/');
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
 
 export const createSalesOrder = createAsyncThunk(
   'salesOrders/createSalesOrder',

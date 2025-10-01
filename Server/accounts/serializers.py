@@ -6,12 +6,14 @@ User = get_user_model()
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
+    date = serializers.DateTimeField(source="date_joined", read_only=True, format="%d-%m-%Y %H:%M")
+    
     
     class Meta:
         model  = User
-        fields = ("id", "email", "password", "role","company")
+        fields = ("id", "email", "password", "role","company","date")
         
-        read_only_fields = ("id","company")
+        read_only_fields = ("id","company","date")
 
     def create(self, validated_data):
         try:

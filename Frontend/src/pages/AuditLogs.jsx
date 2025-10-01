@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchAuditLogs } from '../redux/auditLogsSlice';
+import { 
+  fetchAuditLogs, 
+  fetchAuditStatistics, 
+  fetchAuditDashboard,
+  setFilters, 
+  clearFilters, 
+  setCurrentPage,
+  clearError
+} from '../redux/auditLogsSlice';
 import PageHeader from '../components/layout/PageHeader';
 import { 
   FiUser, 
@@ -11,18 +19,38 @@ import {
   FiFileText,
   FiChevronDown,
   FiChevronUp,
-  FiFilter
+  FiFilter,
+  FiSearch,
+  FiDownload,
+  FiRefreshCw,
+  FiCalendar,
+  FiX
 } from 'react-icons/fi';
 
 const AuditLogs = () => {
-  const { auditLogs, loading: loadingAuditLogs } = useSelector((state) => state.auditLogs);
+  const { 
+    auditLogs, 
+    loading, 
+    statistics, 
+    dashboard, 
+    pagination, 
+    filters, 
+    error 
+  } = useSelector((state) => state.auditLogs);
   const dispatch = useDispatch();
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
-    dispatch(fetchAuditLogs());
+    dispatch(fetchAuditLogs(filters));
+    dispatch(fetchAuditStatistics({ days: 30 }));
+    dispatch(fetchAuditDashboard());
   }, [dispatch]);
+
+  useEffect(() => {
+    dispatch(fetchAuditLogs({ ...filters, page: pagination.currentPage }));
+  }, [dispatch, filters, pagination.currentPage]);
 
   const toggleRowExpansion = (logId) => {
     const newExpandedRows = new Set(expandedRows);
@@ -34,6 +62,26 @@ const AuditLogs = () => {
     setExpandedRows(newExpandedRows);
   };
 
+  const handleFilterChange = (key, value) => {
+    dispatch(setFilters({ [key]: value }));
+    dispatch(setCurrentPage(1)); // Reset to first page when filtering
+  };
+
+  const handleClearFilters = () => {
+    dispatch(clearFilters());
+    dispatch(setCurrentPage(1));
+  };
+
+  const handlePageChange = (page) => {
+    dispatch(setCurrentPage(page));
+  };
+
+  const handleRefresh = () => {
+    dispatch(fetchAuditLogs(filters));
+    dispatch(fetchAuditStatistics({ days: 30 }));
+    dispatch(fetchAuditDashboard());
+  };
+
   const getActionBadgeClasses = (action) => {
     switch (action) {
       case 'CREATE':
@@ -42,6 +90,14 @@ const AuditLogs = () => {
         return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'DELETE':
         return 'bg-red-100 text-red-800 border-red-200';
+      case 'BLOCK':
+        return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'UNBLOCK':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'LOGIN':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'LOGOUT':
+        return 'bg-gray-100 text-gray-800 border-gray-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -69,9 +125,9 @@ const AuditLogs = () => {
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center space-x-2">
                   <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full border ${getActionBadgeClasses(log.action)}`}>
-                    {log.action}
+                    {log.get_action_display || log.action}
                   </span>
-                  <span className="text-sm font-medium text-gray-600">{log.model_name}</span>
+                  <span className="text-sm font-medium text-gray-600">{log.get_category_display || log.category}</span>
                 </div>
                 <div className="text-right">
                   <div className="text-xs text-gray-500">{date}</div>
@@ -82,19 +138,25 @@ const AuditLogs = () => {
               <div className="flex items-center space-x-4 text-sm">
                 <div className="flex items-center space-x-1 text-gray-600">
                   <FiUser className="h-3 w-3" />
-                  <span className="font-medium">{log.user_email || 'System'}</span>
+                  <span className="font-medium">{log.user?.username || log.user?.email || 'System'}</span>
                 </div>
-                {log.user_role && (
+                {log.user?.role && (
                   <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                    {log.user_role}
+                    {log.user.role}
                   </span>
                 )}
               </div>
               
+              {log.description && (
+                <div className="mt-3 p-2 bg-blue-50 rounded-lg">
+                  <p className="text-xs text-blue-800 font-medium">{log.description}</p>
+                </div>
+              )}
+              
               <div className="flex items-center justify-between mt-3">
                 <div className="flex items-center space-x-1 text-xs text-gray-500">
                   <FiHash className="h-3 w-3" />
-                  <span>ID: {log.object_id}</span>
+                  <span>{log.model_name} #{log.object_id}</span>
                 </div>
                 
                 <button
@@ -115,10 +177,33 @@ const AuditLogs = () => {
             {/* Expandable Changes Section */}
             {isExpanded && (
               <div className="p-4 bg-gray-50">
-                <div className="text-xs text-gray-600 mb-2 font-medium">Changes:</div>
-                <pre className="text-xs bg-white p-3 rounded border border-gray-200 overflow-auto max-h-40">
-                  {JSON.stringify(log.changes, null, 2)}
+                {log.get_changes_summary && (
+                  <>
+                    <div className="text-xs text-gray-600 mb-2 font-medium">Summary:</div>
+                    <div className="text-xs bg-white p-3 rounded border border-gray-200 mb-3">
+                      {log.get_changes_summary}
+                    </div>
+                  </>
+                )}
+                <div className="text-xs text-gray-600 mb-2 font-medium">Detailed Changes:</div>
+                <div className="space-y-2">
+                  {log.old_values && Object.keys(log.old_values).length > 0 && (
+                    <div>
+                      <div className="text-xs font-medium text-red-600 mb-1">Old Values:</div>
+                      <pre className="text-xs bg-red-50 p-2 rounded border border-red-200 overflow-auto max-h-32">
+                        {JSON.stringify(log.old_values, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                  {log.new_values && Object.keys(log.new_values).length > 0 && (
+                    <div>
+                      <div className="text-xs font-medium text-green-600 mb-1">New Values:</div>
+                      <pre className="text-xs bg-green-50 p-2 rounded border border-green-200 overflow-auto max-h-32">
+                        {JSON.stringify(log.new_values, null, 2)}
                 </pre>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -149,13 +234,13 @@ const AuditLogs = () => {
               <th scope="col" className="hidden md:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <div className="flex items-center space-x-1">
                   <FiDatabase className="h-3 w-3" />
-                  <span>Model</span>
+                  <span>Category</span>
                 </div>
               </th>
               <th scope="col" className="hidden lg:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <div className="flex items-center space-x-1">
                   <FiHash className="h-3 w-3" />
-                  <span>Object ID</span>
+                  <span>Object</span>
                 </div>
               </th>
               <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -180,25 +265,30 @@ const AuditLogs = () => {
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900 truncate max-w-32">
-                        {log.user_email || 'System'}
+                        {log.user?.username || log.user?.email || 'System'}
                       </div>
-                      {log.user_role && (
+                      {log.user?.role && (
                         <div className="text-xs text-gray-500 truncate">
-                          {log.user_role}
+                          {log.user.role}
                         </div>
                       )}
                     </div>
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getActionBadgeClasses(log.action)}`}>
-                      {log.action}
+                      {log.get_action_display || log.action}
                     </span>
                   </td>
                   <td className="hidden md:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <span className="truncate max-w-24">{log.model_name}</span>
+                    <span className="truncate max-w-24">{log.get_category_display || log.category}</span>
                   </td>
                   <td className="hidden lg:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <span className="font-mono text-xs">{log.object_id}</span>
+                    <div className="space-y-1">
+                      <div className="font-mono text-xs">{log.model_name}</div>
+                      {log.document_number && (
+                        <div className="text-xs text-blue-600">#{log.document_number}</div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <div className="space-y-1">
@@ -212,9 +302,29 @@ const AuditLogs = () => {
                         View Changes
                       </summary>
                       <div className="mt-2 relative">
-                        <pre className="text-xs bg-gray-50 p-2 rounded max-w-xs lg:max-w-sm overflow-auto max-h-32 border">
-                          {JSON.stringify(log.changes, null, 2)}
+                        {log.get_changes_summary && (
+                          <div className="text-xs bg-blue-50 p-2 rounded mb-2 border border-blue-200">
+                            <strong>Summary:</strong> {log.get_changes_summary}
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          {log.old_values && Object.keys(log.old_values).length > 0 && (
+                            <div>
+                              <div className="text-xs font-medium text-red-600 mb-1">Old Values:</div>
+                              <pre className="text-xs bg-red-50 p-2 rounded border border-red-200 overflow-auto max-h-32">
+                                {JSON.stringify(log.old_values, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                          {log.new_values && Object.keys(log.new_values).length > 0 && (
+                            <div>
+                              <div className="text-xs font-medium text-green-600 mb-1">New Values:</div>
+                              <pre className="text-xs bg-green-50 p-2 rounded border border-green-200 overflow-auto max-h-32">
+                                {JSON.stringify(log.new_values, null, 2)}
                         </pre>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </details>
                   </td>
@@ -227,12 +337,205 @@ const AuditLogs = () => {
     </div>
   );
 
-  if (loadingAuditLogs) {
+  // Filter component
+  const renderFilters = () => (
+    <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-medium text-gray-900">Filters</h3>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleRefresh}
+            className="flex items-center space-x-1 px-3 py-1 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+          >
+            <FiRefreshCw className="h-4 w-4" />
+            <span>Refresh</span>
+          </button>
+          <button
+            onClick={handleClearFilters}
+            className="flex items-center space-x-1 px-3 py-1 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            <FiX className="h-4 w-4" />
+            <span>Clear</span>
+          </button>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Action</label>
+          <select
+            value={filters.action}
+            onChange={(e) => handleFilterChange('action', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Actions</option>
+            <option value="CREATE">Create</option>
+            <option value="UPDATE">Update</option>
+            <option value="DELETE">Delete</option>
+            <option value="BLOCK">Block</option>
+            <option value="UNBLOCK">Unblock</option>
+            <option value="LOGIN">Login</option>
+            <option value="LOGOUT">Logout</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <select
+            value={filters.category}
+            onChange={(e) => handleFilterChange('category', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Categories</option>
+            <option value="USER">User Management</option>
+            <option value="CUSTOMER">Customer Management</option>
+            <option value="SUPPLIER">Supplier Management</option>
+            <option value="PRODUCT">Product Management</option>
+            <option value="VAT">VAT Management</option>
+            <option value="ROUTE">Route Management</option>
+            <option value="ROUTE_VISIT">Route Visit Management</option>
+            <option value="SALES_ORDER">Sales Order Management</option>
+            <option value="INVOICE">Invoice Management</option>
+            <option value="PAYMENT">Payment Management</option>
+            <option value="SYSTEM">System Operations</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+          <div className="relative">
+            <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              value={filters.search}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+              placeholder="Search logs..."
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
+          <div className="flex space-x-2">
+            <input
+              type="date"
+              value={filters.date_from}
+              onChange={(e) => handleFilterChange('date_from', e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="date"
+              value={filters.date_to}
+              onChange={(e) => handleFilterChange('date_to', e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Pagination component
+  const renderPagination = () => {
+    if (pagination.totalPages <= 1) return null;
+    
+    const pages = [];
+    const startPage = Math.max(1, pagination.currentPage - 2);
+    const endPage = Math.min(pagination.totalPages, pagination.currentPage + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    
+    return (
+      <div className="flex items-center justify-between bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+        <div className="flex-1 flex justify-between sm:hidden">
+          <button
+            onClick={() => handlePageChange(pagination.currentPage - 1)}
+            disabled={!pagination.hasPrevious}
+            className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+          <button
+            onClick={() => handlePageChange(pagination.currentPage + 1)}
+            disabled={!pagination.hasNext}
+            className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+        <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm text-gray-700">
+              Showing page <span className="font-medium">{pagination.currentPage}</span> of{' '}
+              <span className="font-medium">{pagination.totalPages}</span> ({pagination.count} total logs)
+            </p>
+          </div>
+          <div>
+            <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+              <button
+                onClick={() => handlePageChange(pagination.currentPage - 1)}
+                disabled={!pagination.hasPrevious}
+                className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              {pages.map((page) => (
+                <button
+                  key={page}
+                  onClick={() => handlePageChange(page)}
+                  className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                    page === pagination.currentPage
+                      ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                      : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                onClick={() => handlePageChange(pagination.currentPage + 1)}
+                disabled={!pagination.hasNext}
+                className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </nav>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading audit logs...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 mb-4">
+            <FiX className="h-12 w-12 mx-auto" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Audit Logs</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={handleRefresh}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+          >
+            <FiRefreshCw className="h-4 w-4 mr-2" />
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -246,6 +549,15 @@ const AuditLogs = () => {
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <PageHeader title="Audit Logs" subtitle="System activity and change history" />
+              
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center space-x-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 bg-white border border-gray-300 rounded-md transition-colors"
+                >
+                  <FiFilter className="h-4 w-4" />
+                  <span>Filters</span>
+                </button>
               
               {/* View Toggle - Hidden on larger screens since table works well there */}
               <div className="flex sm:hidden bg-white rounded-lg shadow-sm border p-1">
@@ -272,6 +584,10 @@ const AuditLogs = () => {
               </div>
             </div>
           </div>
+          </div>
+
+          {/* Filters */}
+          {showFilters && renderFilters()}
 
           {/* Stats Summary */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
@@ -282,7 +598,7 @@ const AuditLogs = () => {
                 </div>
                 <div className="ml-3">
                   <p className="text-xs sm:text-sm font-medium text-gray-600">Total Logs</p>
-                  <p className="text-lg sm:text-xl font-bold text-gray-900">{auditLogs.length}</p>
+                  <p className="text-lg sm:text-xl font-bold text-gray-900">{pagination.count}</p>
                 </div>
               </div>
             </div>
@@ -293,9 +609,9 @@ const AuditLogs = () => {
                   <FiActivity className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600">Creates</p>
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">Today</p>
                   <p className="text-lg sm:text-xl font-bold text-gray-900">
-                    {auditLogs.filter(log => log.action === 'CREATE').length}
+                    {dashboard?.today_logs || 0}
                   </p>
                 </div>
               </div>
@@ -303,13 +619,13 @@ const AuditLogs = () => {
 
             <div className="bg-white p-4 rounded-lg shadow-sm border">
               <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <FiActivity className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <FiUser className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600">Updates</p>
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">Users</p>
                   <p className="text-lg sm:text-xl font-bold text-gray-900">
-                    {auditLogs.filter(log => log.action === 'UPDATE').length}
+                    {Object.keys(statistics?.user_stats || {}).length}
                   </p>
                 </div>
               </div>
@@ -317,13 +633,13 @@ const AuditLogs = () => {
 
             <div className="bg-white p-4 rounded-lg shadow-sm border">
               <div className="flex items-center">
-                <div className="p-2 bg-red-100 rounded-lg">
-                  <FiActivity className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <FiDatabase className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600">Deletes</p>
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">Categories</p>
                   <p className="text-lg sm:text-xl font-bold text-gray-900">
-                    {auditLogs.filter(log => log.action === 'DELETE').length}
+                    {Object.keys(statistics?.category_stats || {}).length}
                   </p>
                 </div>
               </div>
@@ -337,6 +653,9 @@ const AuditLogs = () => {
               ? renderCardView() 
               : renderTableView()}
           </div>
+
+          {/* Pagination */}
+          {renderPagination()}
         </div>
       </div>
     </div>

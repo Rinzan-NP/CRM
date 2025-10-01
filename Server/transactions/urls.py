@@ -18,6 +18,7 @@ from .views import (
     VATReportView,
     SalesOrderReportView,
     PurchaseOrderReportView,
+    SalesOrdersAvailableRouteView,
 )
 
 router = DefaultRouter()
@@ -30,7 +31,8 @@ router.register(r"routevisits", RouteVisitViewSet)
 router.register(r"route-location-pings", RouteLocationPingViewSet)
 
 urlpatterns = [
-    path("", include(router.urls)),
+    # Specific patterns must come before router to avoid conflicts
+    path('sales-orders/available_for_route/', SalesOrdersAvailableRouteView.as_view(), name='sales-orders-available-for-route'),
     path("reports/sales-vs-purchase/", SalesVsPurchaseReportView.as_view()),
     path("reports/route-efficiency/", RouteEfficiencyReportView.as_view()),
     path("reports/outstanding-payments/", OutstandingPaymentsView.as_view()),
@@ -42,5 +44,7 @@ urlpatterns = [
     path('customers/<customer_id>/summary/', CustomerSummaryView.as_view(), name='customer-summary'),
     path('sales-order-report/', SalesOrderReportView.as_view(), name='sales-order-report'),
     path('purchase-order-report/', PurchaseOrderReportView.as_view(), name='purchase-order-report'),
-        
+    
+    # Router patterns come last
+    path("", include(router.urls)),
 ]

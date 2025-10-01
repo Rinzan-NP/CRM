@@ -1,8 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { FiMapPin, FiTarget, FiXCircle } from 'react-icons/fi';
 import { GoogleMapsProvider, GoogleMap, Marker, Autocomplete, defaultMapContainerStyle } from '../Common/GoogleMapWrapper';
 
-const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
+const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation, inline = false }) => {
   const normalizeLatLng = (value) => {
     if (!value) return null;
     if (Array.isArray(value) && value.length === 2) {
@@ -23,6 +23,8 @@ const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
   const [selectedLocation, setSelectedLocation] = useState(normalized);
   const [center, setCenter] = useState(initialCenter);
   const [zoom, setZoom] = useState(12);
+  const [mapLoading, setMapLoading] = useState(true);
+  const [mapError, setMapError] = useState(null);
   const autocompleteRef = useRef(null);
 
   // Reset selected location when currentLocation changes
@@ -38,6 +40,11 @@ const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
     if (selectedLocation) {
       const lat = parseFloat(selectedLocation.lat.toFixed(6));
       const lon = parseFloat(selectedLocation.lng.toFixed(6));
+      console.log('Selected Location Data:', {
+        latitude: lat,
+        longitude: lon,
+        coordinates: { lat, lng: lon }
+      });
       onLocationSelect(lat, lon);
     }
   };
@@ -59,12 +66,21 @@ const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
     }
   };
 
+  const containerClass = inline 
+    ? "bg-white rounded-lg p-6 w-full max-h-[90vh] overflow-y-auto"
+    : "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
+  
+  const contentClass = inline
+    ? "bg-white rounded-lg p-6 w-full max-h-[90vh] overflow-y-auto"
+    : "bg-white rounded-lg p-6 w-full max-w-5xl mx-4 max-h-[90vh] overflow-y-auto";
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-5xl mx-4 max-h-[90vh] overflow-hidden">
+    <div className={containerClass}>
+      <div className={contentClass}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Pick Location on Map</h3>
           <button
+            type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
           >
@@ -76,11 +92,17 @@ const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
           <p className="text-sm text-blue-800">
             Click anywhere on the map to select a location. The selected coordinates will be used for the customer's address.
           </p>
+          {selectedLocation && (
+            <p className="text-sm text-green-800 mt-2 font-medium">
+              ✓ Location selected! Click "Confirm Location" to use these coordinates.
+            </p>
+          )}
         </div>
 
         {/* Map Controls */}
         <div className="mb-4 flex gap-3">
           <button
+            type="button"
             onClick={handleSearchLocation}
             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
           >
@@ -89,9 +111,12 @@ const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
           </button>
           
           <button
+            type="button"
             onClick={() => {
-              setMapCenter([25.2048, 55.2708]); // Dubai
-              setMapZoom(10);
+              const dubaiCenter = { lat: 25.2048, lng: 55.2708 };
+              setCenter(dubaiCenter);
+              setZoom(10);
+              setSelectedLocation(dubaiCenter);
             }}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
           >
@@ -102,82 +127,118 @@ const MapLocationPicker = ({ onLocationSelect, onClose, currentLocation }) => {
 
         {/* Map Container */}
         <div className="h-96 w-full rounded-lg overflow-hidden border mb-4 relative">
-          <GoogleMapsProvider>
-            <div className="absolute top-3 left-3 z-[1000] w-72">
-              <Autocomplete
-                onLoad={(ac) => (autocompleteRef.current = ac)}
-                onPlaceChanged={() => {
-                  const place = autocompleteRef.current?.getPlace();
-                  if (!place || !place.geometry || !place.geometry.location) return;
-                  const lat = place.geometry.location.lat();
-                  const lng = place.geometry.location.lng();
-                  const loc = { lat, lng };
-                  setCenter(loc);
-                  setZoom(15);
+          {mapError ? (
+            <div className="flex items-center justify-center h-full bg-red-50">
+              <div className="text-center">
+                <p className="text-red-600 mb-2">Failed to load map</p>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setMapError(null);
+                    setMapLoading(true);
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          ) : (
+            <GoogleMapsProvider>
+              <div className="absolute top-3 left-3 z-[1000] w-72">
+                <Autocomplete
+                  onLoad={(ac) => (autocompleteRef.current = ac)}
+                  onPlaceChanged={() => {
+                    const place = autocompleteRef.current?.getPlace();
+                    if (!place || !place.geometry || !place.geometry.location) return;
+                    const lat = place.geometry.location.lat();
+                    const lng = place.geometry.location.lng();
+                    const loc = { lat, lng };
+                    setCenter(loc);
+                    setZoom(15);
+                    setSelectedLocation(loc);
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Search places..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none bg-white"
+                  />
+                </Autocomplete>
+              </div>
+              <GoogleMap
+                key={`location-picker-${selectedLocation?.lat}-${selectedLocation?.lng}`}
+                center={center}
+                zoom={zoom}
+                mapContainerStyle={defaultMapContainerStyle}
+                options={{ streetViewControl: false, mapTypeControl: false }}
+                onClick={(e) => {
+                  const loc = { lat: e.latLng.lat(), lng: e.latLng.lng() };
                   setSelectedLocation(loc);
                 }}
+                onLoad={() => {
+                  setMapLoading(false);
+                  setMapError(null);
+                }}
+                onError={() => {
+                  setMapLoading(false);
+                  setMapError('Failed to load Google Maps');
+                }}
               >
-                <input
-                  type="text"
-                  placeholder="Search places..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none bg-white"
-                />
-              </Autocomplete>
-            </div>
-            <GoogleMap
-              key={`location-picker-${selectedLocation?.lat}-${selectedLocation?.lng}`}
-              center={center}
-              zoom={zoom}
-              mapContainerStyle={defaultMapContainerStyle}
-              options={{ streetViewControl: false, mapTypeControl: false }}
-              onClick={(e) => {
-                const loc = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-                setSelectedLocation(loc);
-              }}
-            >
-              {selectedLocation && (
-                <Marker position={selectedLocation} />
+                {selectedLocation && (
+                  <Marker position={selectedLocation} />
+                )}
+              </GoogleMap>
+              {mapLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-gray-600">Loading map...</p>
+                  </div>
+                </div>
               )}
-            </GoogleMap>
-          </GoogleMapsProvider>
+            </GoogleMapsProvider>
+          )}
         </div>
 
         {/* Selected Location Display */}
-        {/* {selectedLocation && (
-          // <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
-          //   <div className="flex items-center gap-2 mb-3">
-          //     <FiTarget className="h-5 w-5 text-green-600" />
-          //     <span className="text-lg font-medium text-green-800">Selected Location</span>
-          //   </div>
+        {selectedLocation && (
+          <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
+            <div className="flex items-center gap-2 mb-3">
+              <FiTarget className="h-5 w-5 text-green-600" />
+              <span className="text-lg font-medium text-green-800">Selected Location</span>
+            </div>
             
-          //   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          //     <div>
-          //       <span className="font-medium text-green-700">Latitude:</span>
-          //       <span className="ml-2 text-green-600 font-mono">{selectedLocation.lat.toFixed(6)}</span>
-          //     </div>
-          //     <div>
-          //       <span className="font-medium text-green-700">Longitude:</span>
-          //       <span className="ml-2 text-green-600 font-mono">{selectedLocation.lng.toFixed(6)}</span>
-          //     </div>
-          //   </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium text-green-700">Latitude:</span>
+                <span className="ml-2 text-green-600 font-mono">{selectedLocation.lat.toFixed(6)}</span>
+              </div>
+              <div>
+                <span className="font-medium text-green-700">Longitude:</span>
+                <span className="ml-2 text-green-600 font-mono">{selectedLocation.lng.toFixed(6)}</span>
+              </div>
+            </div>
             
-          //   <div className="mt-3 p-2 bg-white rounded border border-green-200">
-          //     <span className="text-xs text-green-600">
-          //       Coordinates will be automatically used to populate address fields
-          //     </span>
-          //   </div>
-          // </div>
-        )} */}
+            <div className="mt-3 p-2 bg-white rounded border border-green-200">
+              <span className="text-xs text-green-600">
+                Coordinates will be automatically used to populate address fields
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-3">
+        <div className="flex justify-end gap-3 mt-6 mb-4 sticky bottom-0 bg-white pt-4 border-t border-gray-200">
           <button
+            type="button"
             onClick={onClose}
             className="px-6 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
           >
             Cancel
           </button>
           <button
+            type="button"
             onClick={handleConfirmLocation}
             disabled={!selectedLocation}
             className={`px-6 py-2 rounded-md flex items-center gap-2 ${

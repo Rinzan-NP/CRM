@@ -15,7 +15,7 @@ const Customers = () => {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [showMap, setShowMap] = useState(false);
+  // const [showMap, setShowMap] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
@@ -27,6 +27,8 @@ const Customers = () => {
       const response = await api.get('/main/customers/');
       setCustomers(response.data);
     } catch (err) {
+      console.log(err);
+      
       setError('Failed to fetch customers');
     } finally {
       setLoading(false);
@@ -52,6 +54,7 @@ const Customers = () => {
       setEditingCustomer(null);
       fetchCustomers();
     } catch (err) {
+      console.log(err);
       throw err;
     }
   };
@@ -64,6 +67,7 @@ const Customers = () => {
         setInfo('Customer deleted successfully!');
         fetchCustomers();
       } catch (err) {
+        console.log(err);
         setError('Failed to delete customer');
       }
     }
@@ -81,26 +85,28 @@ const Customers = () => {
   };
 
   // Handle geocoding
-  const handleGeocode = async (customer) => {
+  const handleGeocode = async () => {
     try {
-      const response = await api.post(`/main/customers/${customer.id}/geocode_address/`);
+      // const response = await api.post(`/main/customers/${customer.id}/geocode_address/`);
       setInfo('Address geocoded successfully!');
       fetchCustomers();
     } catch (err) {
+      console.log(err);
       setError('Failed to geocode address');
     }
   };
 
   // Handle setting coordinates
-  const handleSetCoordinates = async (customer, lat, lon) => {
+  const handleSetCoordinates = async () => {
     try {
-      const response = await api.post(`/main/customers/${customer.id}/set_coordinates/`, {
-        lat: lat,
-        lon: lon
-      });
+      // const response = await api.post(`/main/customers/${customer.id}/set_coordinates/`, {
+      //   lat: lat,
+      //   lon: lon
+      // });
       setInfo('Coordinates set successfully!');
       fetchCustomers();
     } catch (err) {
+      console.log(err);
       setError('Failed to set coordinates');
     }
   };

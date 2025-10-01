@@ -1,17 +1,30 @@
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
-from audit.models import AuditLog
-from audit.serializers import AuditLogSerializer
+from django.shortcuts import render
+from rest_framework import generics, permissions
+from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter, OrderingFilter
+from .models import AuditLog
+from .serializers import AuditLogSerializer
 
-class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+
+class AuditLogListView(generics.ListAPIView):
+    """
+    API endpoint to list audit logs with filtering and search capabilities.
+    """
     queryset = AuditLog.objects.all()
     serializer_class = AuditLogSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['model_name', 'action', 'performed_by', 'timestamp']
+    search_fields = ['model_name', 'record_number', 'performed_by__username']
+    ordering_fields = ['timestamp', 'model_name', 'action']
+    ordering = ['-timestamp']
 
-    def get_queryset(self):
-        # Admins see everything, others see only their own actions
-        qs = self.queryset.filter(company=self.request.user.company)
-        user = self.request.user
-        if getattr(user, 'role', '') == 'admin':
-            return qs
-        return qs.filter(user=user)
+
+class AuditLogDetailView(generics.RetrieveAPIView):
+    """
+    API endpoint to retrieve a specific audit log entry.
+    """
+    queryset = AuditLog.objects.all()
+    serializer_class = AuditLogSerializer
+    permission_classes = [permissions.IsAuthenticated]

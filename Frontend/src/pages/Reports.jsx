@@ -12,6 +12,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import api from '../services/api';
 import PageHeader from '../components/layout/PageHeader';
 import { FiRefreshCw, FiDownload } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 
 const Reports = () => {
   const [reports, setReports] = useState({
@@ -96,11 +98,17 @@ const Reports = () => {
       setLoading(false);
     }
   };
-
+  const navigate = useNavigate();
+  const {user} = useAuth();
   useEffect(() => {
+    
     fetchReports();
   }, [dateRange, activeTab]);
-
+  // useEffect(() => {
+  //   if (user.role == 'salesperson') {
+  //     navigate('/sales');
+  //   }
+  // }, []);
   const handleDateRangeChange = (field, value) => {
     setDateRange(prev => ({ ...prev, [field]: value }));
   };
