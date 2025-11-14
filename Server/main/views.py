@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_datetime
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -362,6 +363,7 @@ class CreditReport(APIView):
                 credit_history = []
                 for credit in credits:
                     credit_history.append({
+                        'id': credit.id,
                         'date': credit.created_at.strftime('%Y-%m-%d'),
                         'amount': float(credit.amount),
                         'invoiceNo': credit.invoice.invoice_no,
@@ -419,13 +421,13 @@ class ExternalCreditReport(APIView):
                 {"detail": "You do not have permission to perform this action."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-
-        invoice_id = request.data.get("invoice_id")
+        print(request.data)
+        credit_id = request.data.get("credit_id")
         new_expired_at = request.data.get("new_expired_at")
 
-        if not invoice_id or not new_expired_at:
+        if not credit_id or not new_expired_at:
             return Response(
-                {"detail": "Both 'invoice_id' and 'new_expired_at' are required."},
+                {"detail": "Both 'credit_id' and 'new_expired_at' are required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -437,12 +439,12 @@ class ExternalCreditReport(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Fetch credit or return 404
-        credit = get_object_or_404(Credit, invoice_id=invoice_id)
+        # Fetch credit by credit ID or return 404
+        credit = get_object_or_404(Credit, id=credit_id)
         credit.expired_at = expired_at
         credit.save(update_fields=["expired_at"])
 
         return Response(
-            {"detail": f"Credit {invoice_id} expiration updated successfully."},
+            {"detail": f"Credit {credit_id} expiration updated successfully."},
             status=status.HTTP_200_OK,
         )

@@ -174,6 +174,11 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
+# WhiteNoise configuration for optimal static file serving
+WHITENOISE_USE_FINDERS = False  # Use collected static files, not finders
+WHITENOISE_AUTOREFRESH = False  # Don't auto-refresh in production (faster)
+WHITENOISE_MANIFEST_STRICT = False  # Allow missing files gracefully
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

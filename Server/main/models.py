@@ -18,7 +18,7 @@ class BaseModel(models.Model):
 
     class Meta:
         abstract = True
-
+        
 
 class Credit(BaseModel):
     invoice = models.OneToOneField("transactions.Invoice", on_delete=models.CASCADE, related_name="credits")

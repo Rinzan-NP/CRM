@@ -6,7 +6,6 @@ export default function CreditListingPage() {
   const [showExtendModal, setShowExtendModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [extendAmount, setExtendAmount] = useState('');
   const [selectedCreditHistory, setSelectedCreditHistory] = useState('');
   const [extensionDate, setExtensionDate] = useState('');
   const [isExtending, setIsExtending] = useState(false);
@@ -130,22 +129,19 @@ export default function CreditListingPage() {
   };
 
   const submitExtendCredit = async () => {
-    if (extendAmount && selectedCustomer && selectedCreditHistory && extensionDate) {
+    if (selectedCustomer && selectedCreditHistory && extensionDate) {
       setIsExtending(true);
       try {
         const selectedHistory = JSON.parse(selectedCreditHistory);
         
-        // Prepare the extension data
+        // Prepare the extension data for the backend API
         const extensionData = {
-          customerId: selectedCustomer.id,
-          creditHistoryId: selectedHistory.id || selectedHistory.invoiceNo,
-          amount: parseFloat(extendAmount),
-          extensionDate: extensionDate,
-          invoiceNo: `${selectedHistory.invoiceNo}-EXT`
+          credit_id: selectedHistory.id, // Use the Credit ID from the credit history
+          new_expired_at: extensionDate + 'T23:59:59Z' // Add time to end of day
         };
 
-        // Make API call to extend credit
-        const response = await api.post('/main/credit-report/extend/', extensionData);
+        // Make API call to extend credit expiry date
+        const response = await api.post('/main/external-credit-report/', extensionData);
         
         if (response.data) {
           // Refresh the data from backend
@@ -153,7 +149,6 @@ export default function CreditListingPage() {
           
           // Close modal and reset form
           setShowExtendModal(false);
-          setExtendAmount('');
           setSelectedCreditHistory('');
           setExtensionDate('');
           setSelectedCustomer(null);
@@ -166,7 +161,7 @@ export default function CreditListingPage() {
         // Create new credit history entry for the extension
         const newCreditEntry = {
           date: extensionDate,
-          amount: parseFloat(extendAmount),
+          amount: 0, // Extension doesn't add amount, just extends expiry
           invoiceNo: `${selectedHistory.invoiceNo}-EXT`,
           type: 'Credit Extension',
           status: 'Granted'
@@ -176,14 +171,11 @@ export default function CreditListingPage() {
           c.id === selectedCustomer.id 
             ? { 
                 ...c, 
-                totalCredit: c.totalCredit + parseFloat(extendAmount), 
-                creditLeft: c.creditLeft + parseFloat(extendAmount),
                 creditHistory: [...c.creditHistory, newCreditEntry]
               }
             : c
         ));
         setShowExtendModal(false);
-        setExtendAmount('');
         setSelectedCreditHistory('');
         setExtensionDate('');
         setSelectedCustomer(null);
@@ -362,13 +354,15 @@ export default function CreditListingPage() {
                   )}
 
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => handleExtendCredit(credit)}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm font-medium"
-                    >
-                      <Plus size={16} />
-                      Extend Credit
-                    </button>
+                    {credit.creditLeft > 0 && (
+                      <button
+                        onClick={() => handleExtendCredit(credit)}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm font-medium"
+                      >
+                        <Plus size={16} />
+                        Extend Credit
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         const isLargeScreen = window.innerWidth >= 1024;
@@ -503,29 +497,30 @@ export default function CreditListingPage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Current Credit</label>
-                <input
-                  type="text"
-                  value={`AED ${selectedCustomer?.totalCredit.toLocaleString()}`}
-                  disabled
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
-                />
+              
+              {/* Credit Information Display */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Current Credit</label>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-lg font-bold text-blue-600">AED {selectedCustomer?.totalCredit.toLocaleString()}</p>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Remaining Credit</label>
+                  <div className={`border rounded-lg p-3 ${selectedCustomer?.creditLeft === 0 ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
+                    <p className={`text-lg font-bold ${selectedCustomer?.creditLeft === 0 ? 'text-green-600' : 'text-orange-600'}`}>
+                      AED {selectedCustomer?.creditLeft.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Credit History</label>
                 <select
                   value={selectedCreditHistory}
-                  onChange={(e) => {
-                    setSelectedCreditHistory(e.target.value);
-                    if (e.target.value) {
-                      const history = JSON.parse(e.target.value);
-                      const amountDue = calculateAmountDueForCreditHistory(history, selectedCustomer);
-                      setExtendAmount(amountDue.toString());
-                    } else {
-                      setExtendAmount('');
-                    }
-                  }}
+                  onChange={(e) => setSelectedCreditHistory(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">Select a credit history entry</option>
@@ -546,17 +541,6 @@ export default function CreditListingPage() {
                   value={extensionDate}
                   onChange={(e) => setExtensionDate(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Amount to Extend (Auto-calculated from selected credit history)</label>
-                <input
-                  type="number"
-                  value={extendAmount}
-                  onChange={(e) => setExtendAmount(e.target.value)}
-                  placeholder="Amount will be auto-filled based on credit history selection"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
-                  readOnly={selectedCreditHistory !== ''}
                 />
               </div>
             </div>
@@ -583,7 +567,6 @@ export default function CreditListingPage() {
               <button
                 onClick={() => {
                   setShowExtendModal(false);
-                  setExtendAmount('');
                   setSelectedCreditHistory('');
                   setExtensionDate('');
                   setSelectedCustomer(null);

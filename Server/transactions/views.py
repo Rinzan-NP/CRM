@@ -1034,9 +1034,10 @@ class RouteLocationPingViewSet(viewsets.ModelViewSet):
         
         today = timezone.now().date()
         
-        # Base query for routes with pings today
+        # Base query for routes with pings today - ALWAYS filter by company for security
         routes_query = Route.objects.filter(
-            location_pings__created_at__date=today
+            location_pings__created_at__date=today,
+            company=user.company  
         ).select_related('salesperson').annotate(
             ping_count=Count('location_pings'),
             last_ping_time=Max('location_pings__created_at'),
